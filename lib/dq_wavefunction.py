@@ -52,7 +52,6 @@ class wavefunction():
         self.activation_function = activation_function
 
         self.input_state  = tf.placeholder(conf.DTYPE,[self.input_num,1]); # single state for MC
-        self.input_state_overlap = tf.placeholder(conf.DTYPE,[self.input_num,pow(2,self.input_num)])
         self.weights = []
         self.biases = []
 
@@ -101,6 +100,8 @@ class wavefunction():
 
         # Build op for self.input_states
         self.wavefunction_tf_op = self.buildOp(self.input_state);
+
+        self.input_state_overlap = tf.placeholder(conf.DTYPE,[self.input_num,pow(2,self.input_num)]) # SHOULD ONLY BE CREATED IF OVERLAP IS TO BE COMPUTED
         self.wavefunction_overlap_op = self.buildOp(self.input_state_overlap)
 
     def buildOp(self,input_states):

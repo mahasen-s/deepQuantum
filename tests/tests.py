@@ -9,7 +9,7 @@ class wavefunction_test():
         self.wavefunction_tf_op = self.buildOp(self.input_state)
 
     def buildOp(self,input_states):
-        psi = self.wfFun(
+        psi = self.wfFun()
         return psi
 
     def eval

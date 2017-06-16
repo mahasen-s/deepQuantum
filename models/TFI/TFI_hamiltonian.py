@@ -25,7 +25,7 @@ class hamiltonian_tfi():
         self.sigx           = tf.placeholder(conf.DTYPE,shape=[self.N,self.N,M])
         self.sigz           = tf.placeholder(conf.DTYPE,shape=[M])
 
-        self.E_var          = self.build_E_var()
+        self.build_E_var()
 
     def build_E_var(self):
         # Add sig_z terms
@@ -38,8 +38,9 @@ class hamiltonian_tfi():
         else:
             absFun = tf.abs
 
+        self.E_vals = tf.add(E_sig_z,E_sig_x)
         E_norm      = tf.reduce_sum(tf.pow(absFun(psi),2.0));
-        E_var       = tf.reduce_sum(tf.divide(tf.add(E_sig_z,E_sig_x),E_norm));
+        E_var       = tf.reduce_sum(tf.divide(self.E_vals,E_norm));
 #        E_var       = tf.negative(E_var)
 
         # TEMPORARY LINE!! SHOULD MINIMIZE VARIANCE!
@@ -47,7 +48,7 @@ class hamiltonian_tfi():
         #    E_var   = utils.tf_cmplx_abs(E_var)
             E_var   = tf.real(E_var);
 
-        return E_var
+        self.E_var  = E_var
         # Need something here for complex handling
 
     def getAuxVars(self,S):
@@ -59,9 +60,9 @@ class hamiltonian_tfi():
         N       = S.shape[0];
 
         # Get number of spin-aligned pairs in each sample
-        sigz    = np.add.reduce(np.abs(S + np.roll(S,1,0)),0)/2;
+        np_sigz  = np.add.reduce(np.multiply(S,np.roll(S,1,0)),0);
 
         # Get NxNxM array of single-site flipped states
-        sigx    = np.einsum('ij,ai->aij',S,(np.ones(N) - 2*np.eye(N)))
+        np_sigx  = np.einsum('ij,ai->aij',S,(np.ones(N) - 2*np.eye(N)))
 
-        return nptype(sigx),nptype(sigz);
+        return nptype(np_sigx),nptype(np_sigz);

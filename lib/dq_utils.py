@@ -1,7 +1,7 @@
 ### PYTHON
 def genAllStates(N):
     import numpy as np
-    from dq_utils import getBitWidth
+    from .dq_utils import getBitWidth
 
     bitWidth = getBitWidth();
     binarise = lambda x: np.array(list(format(x,'0'+str(N)+'b'))).astype(bitWidth)
@@ -30,7 +30,7 @@ def genAllStates(N):
 
 def getBitWidth():
     # Return bit width of data type
-    import config as conf
+    from . import config as conf
     import tensorflow as tf
     if conf.DTYPE == tf.complex64 or conf.DTYPE == tf.float32:
         bitWidth    = 'float32'
@@ -64,7 +64,7 @@ def tf_cmplx_abs_to_cmplx(x):
     # Function which returns the absolute value of a complex number as a complex data type
     # Is implicitly casting pythonic 0 to TF zero slower than explicitly using TF zero?
     import tensorflow as tf
-    from dq_utils import tf_cmplx_abs
+    from .dq_utils import tf_cmplx_abs
     if x.dtype==tf.complex64:
         zero_dtype = tf.float32
     elif x.dtype==tf.complex128:
@@ -87,7 +87,7 @@ def tf_reduce_prod_cmplx(x,dim, keepdims=False):
     # Produces tensorflow operation which reduces along dimension dim 
     # For consistency with numpy, dim is indexed left to right
     # keep_dims controls whether or not singleton dimensions are removed
-    from dq_utils import tf_get_shape
+    from .dq_utils import tf_get_shape
     import tensorflow as tf
 
     x_red_shape     = tf_get_shape(x);

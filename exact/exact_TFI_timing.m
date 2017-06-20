@@ -1,5 +1,5 @@
 function exact_TFI_timing
-hList   = 0.5;%:0.25:2.0;
+hList   = 0.0;%:0.25:2.0;
 NMax    = 15;
 method  = 'sa';
 

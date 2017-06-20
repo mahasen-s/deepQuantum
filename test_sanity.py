@@ -103,3 +103,4 @@ print(sess.run(H_GHZ.input_states, feed_dict={H_GHZ.input_states:test}))
 
 print("Test multiply")
 print(sess.run(tf.multiply(wf_GHZ.buildOp(H_GHZ.input_states),sigz), feed_dict={H_GHZ.input_states:test}))
+print(sess.run(tf.multiply(wf_W.buildOp(H_W.input_states),sigz), feed_dict={H_W.input_states:test}))

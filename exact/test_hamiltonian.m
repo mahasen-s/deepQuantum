@@ -1,7 +1,7 @@
 function test_hamiltonian
 N               = 3;
 
-states          = [1,1,1;-1,-1,-1;-1,1,1;1,-1,1;1,1,-1]';
+states          = [1,1,1;-1,-1,-1;1,-1,-1;-1,1,-1;-1,-1,1]';
 down            = [1,0];
 up              = [0,1];
 basis           = [down;up]';
@@ -48,7 +48,7 @@ h_detune= 0;
 H       = full(H);
 
 % Apply Hamiltonian, convert states to shorthand
-H1  = H*states_full;
+H1  = H*states_full
 states  = cell(1,n_states);
 for i=1:n_states
     states{i}  = convertState(H1(:,i));

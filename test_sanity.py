@@ -85,6 +85,9 @@ E_W     = np.zeros(M)
 E_GHZ    = sess.run(H_GHZ.E_vals, feed_dict={H_GHZ.input_states:test, H_GHZ.sigx: sigx, H_GHZ.sigz:sigz})
 E_W      = sess.run(H_W.E_vals, feed_dict={H_W.input_states:test, H_W.sigx: sigx, H_W.sigz:sigz})
 
+print("States")
+print(test)
+
 print("Wavefunction tests:")
 print(wf_GHZ.eval(test))
 print(wf_W.eval(test))

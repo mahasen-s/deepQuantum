@@ -94,8 +94,9 @@ print("Hamiltonian tests:" )
 print(E_GHZ)
 print(E_W)
 
-print("Sigz, sigx")
+print("Sigz")
 print(sigz)
+print("Sigx")
 print(sigx)
 
 print("New test")

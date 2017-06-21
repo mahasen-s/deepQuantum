@@ -17,7 +17,7 @@ from lib.dq_computeOverlap import computeOverlap
 from models.TFI.TFI_sampling import sampling_tfi as sampling_fun
 from models.TFI.TFI_hamiltonian import hamiltonian_tfi as hamiltonian
 
-def run_net(N=2,alpha=2,learn_rate=0.1,optim='gradient_descent',M=1000,mcs=1000,h_drive=1,h_inter=0.5,h_detune=0,wf_exact=[],fileOut=[],verbose=False):
+def run_net(N=2,alpha=2,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h_drive=1,h_inter=0.5,h_detune=0,wf_exact=[],fileOut=[],verbose=False):
     P           = alpha*N;
 
     # Instantiate TF session

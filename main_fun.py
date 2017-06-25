@@ -40,12 +40,14 @@ def run_net(N=2,alpha=2,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h
             computeOverlapFlag = True
 
     # Build training
+    minVar  = tf.real(H.E_var)
+
     if optim == 'gradient_descent':
-        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H.E_var);
+        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(minVar);
     elif optim == 'adagrad':
-        trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(H.E_var);
+        trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(minVar);
     elif optim == 'adam':
-        trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H.E_var);
+        trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(minVar);
 
 
     # Initialize variables

@@ -39,16 +39,13 @@ class hamiltonian_tfi():
             absFun = tf.abs
 
         self.E_vals = tf.add(E_sig_z,E_sig_x)
-        E_norm      = tf.reduce_sum(tf.pow(absFun(psi),2.0));
-        E_var       = tf.reduce_sum(tf.divide(self.E_vals,E_norm));
-#        E_var       = tf.negative(E_var)
+        self.E_var  = tf.reduce_sum(tf.divide(self.E_vals,psi)); # incorrect, not norm for e local
 
         # TEMPORARY LINE!! SHOULD MINIMIZE VARIANCE!
-        if utils.tf_is_cmplx(conf.DTYPE)==True:
+        #if utils.tf_is_cmplx(conf.DTYPE)==True:
         #    E_var   = utils.tf_cmplx_abs(E_var)
-            E_var   = tf.real(E_var);
+        #    E_var   = tf.real(E_var);
 
-        self.E_var  = E_var
         # Need something here for complex handling
 
     def getAuxVars(self,S):

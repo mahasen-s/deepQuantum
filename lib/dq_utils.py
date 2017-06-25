@@ -117,12 +117,12 @@ def tf_to_complex128(real,imag):
 
 def tf_sigmoid_complex128(x):
     import tensorflow as tf
-    from dq_utils import tf_to_complex128
+    from .dq_utils import tf_to_complex128
     return tf.divide(tf_to_complex128(1,0),tf.add(tf_to_complex128(1,0),tf.exp(tf.negative(x))));
 
 def tf_softmax_complex(x,dtype):
     import tensorflow as tf
-    from dq_utils import tf_to_complex128, tf_to_complex64
+    from .dq_utils import tf_to_complex128, tf_to_complex64
     if dtype == tf.complex64:
         dtype_fn = tf_to_complex64;
     else:
@@ -131,7 +131,7 @@ def tf_softmax_complex(x,dtype):
 
 def tf_tanh_complex128(x):
     import tensorflow as tf
-    from dq_utils import to_complex128
+    from .dq_utils import to_complex128
     num = tf.add(tf_to_complex128(1,0),tf.exp(tf.multiply(to_complex128(2,0),x)));
     den = tf.subtract(to_complex128(1,0),tf.exp(tf.negative(tf.multiply(tf_to_complex128(2,0),x))));
     return tf.divide(num,den);

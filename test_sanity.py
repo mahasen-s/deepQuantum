@@ -24,7 +24,7 @@ class wf_test():
         self.output_num = output_num
         self.wf_fun = wf_fun # function which is actually evaluated to return psi
 
-        self.input_state = tf.placeholder(conf.DTYPE,[self.input_num,5])
+        self.input_state = tf.placeholder(conf.DTYPE,[self.input_num,1])
         self.wavefunction_tf_op = self.buildOp(self.input_state)
 
 
@@ -58,53 +58,79 @@ def wf_W_fun(caller,input_states):
     return psi
 
 
-N       = 3;
-sess    = tf.Session();
+def test_wf():
+    N       = 3;
+    sess    = tf.Session();
 
-# Create states
-wf_GHZ  = wf_test(sess,wf_GHZ_fun,input_num=N)
-wf_W    = wf_test(sess,wf_W_fun,input_num=N)
+    # Create states
+    wf_GHZ  = wf_test(sess,wf_GHZ_fun,input_num=N)
+    wf_W    = wf_test(sess,wf_W_fun,input_num=N)
 
-# Initialise variables
-sess.run(tf.global_variables_initializer());
+    # Initialise variables
+    sess.run(tf.global_variables_initializer());
 
-# Define input states
-test    = np.array([[1,1,1],[-1,-1,-1],[1,-1,-1],[-1,1,-1],[-1,-1,1]])
-test    = np.transpose(test)
+    # Define input states
+    test    = np.array([[1,1,1],[-1,-1,-1],[1,-1,-1],[-1,1,-1],[-1,-1,1]])
+    test    = np.transpose(test)
 
-M       = test.shape[1];
+    M       = test.shape[1];
 
-# GHZ
-H_GHZ   = hamiltonian(wf_GHZ,M,h_drive=0,h_inter=1,h_detune=0)
-H_W     = hamiltonian(wf_W,M,h_drive=0,h_inter=1,h_detune=0)
-E_GHZ   = np.zeros(M)
-E_W     = np.zeros(M)
+    # GHZ
+    H_GHZ   = hamiltonian(wf_GHZ,M,h_drive=0,h_inter=1,h_detune=0)
+    H_W     = hamiltonian(wf_W,M,h_drive=0,h_inter=1,h_detune=0)
+    E_GHZ   = np.zeros(M)
+    E_W     = np.zeros(M)
 
-#for i in range(0,M-1):
-[sigx,sigz] = H_GHZ.getAuxVars(test)
-E_GHZ    = sess.run(H_GHZ.E_vals, feed_dict={H_GHZ.input_states:test, H_GHZ.sigx: sigx, H_GHZ.sigz:sigz})
-E_W      = sess.run(H_W.E_vals, feed_dict={H_W.input_states:test, H_W.sigx: sigx, H_W.sigz:sigz})
+    #for i in range(0,M-1):
+    [sigx,sigz] = H_GHZ.getAuxVars(test)
+    E_GHZ    = sess.run(H_GHZ.E_vals, feed_dict={H_GHZ.input_states:test, H_GHZ.sigx: sigx, H_GHZ.sigz:sigz})
+    E_W      = sess.run(H_W.E_vals, feed_dict={H_W.input_states:test, H_W.sigx: sigx, H_W.sigz:sigz})
 
-print("States")
-print(test)
+    print("States")
+    print(test)
 
-print("Wavefunction tests:")
-print(wf_GHZ.eval(test))
-print(wf_W.eval(test))
+    print("Wavefunction tests:")
+    print(wf_GHZ.eval(test))
+    print(wf_W.eval(test))
 
-print("Hamiltonian tests:" )
-# Print
-print(E_GHZ)
-print(E_W)
+    print("Hamiltonian tests:" )
+    # Print
+    print(E_GHZ)
+    print(E_W)
 
-print("Sigz")
-print(sigz)
-print("Sigx")
-print(sigx)
+    print("Sigz")
+    print(sigz)
+    print("Sigx")
+    print(sigx)
 
-print("New test")
-print(sess.run(H_GHZ.input_states, feed_dict={H_GHZ.input_states:test}))
+    print("New test")
+    print(sess.run(H_GHZ.input_states, feed_dict={H_GHZ.input_states:test}))
 
-print("Test multiply")
-print(sess.run(tf.multiply(wf_GHZ.buildOp(H_GHZ.input_states),sigz), feed_dict={H_GHZ.input_states:test}))
-print(sess.run(tf.multiply(wf_W.buildOp(H_W.input_states),sigz), feed_dict={H_W.input_states:test}))
+    print("Test multiply")
+    print(sess.run(tf.multiply(wf_GHZ.buildOp(H_GHZ.input_states),sigz), feed_dict={H_GHZ.input_states:test}))
+    print(sess.run(tf.multiply(wf_W.buildOp(H_W.input_states),sigz), feed_dict={H_W.input_states:test}))
+
+def test_mcg():
+    N = 5
+    sess = tf.Session()
+
+    # Create states
+    wf_W    = wf_test(sess,wf_W_fun,input_num=N)
+
+    # initialise variables
+    sess.run(tf.global_variables_initializer())
+
+    # Import 
+    from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
+    from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
+
+    M = 10;
+    samp    = sampler(N=N,probFun=wf_W.eval)
+    mcg1    = mcg(samp,burnIn=0,thinning=0)
+
+    # Get sample, unseeded
+    S       = mcg1.getSample_MH(M)
+    print('\nMarkov chain')
+    print(repr(S))
+
+test_mcg()

@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+import numpy.random as nr
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from timeit import default_timer as timer
@@ -14,17 +15,19 @@ from lib.dq_sampling import metropolisSample
 from lib.dq_wavefunction import wavefunction
 from lib.dq_computeOverlap import computeOverlap
 
+from lib.dq_utils import genAllStates
+
 from models.TFI.TFI_sampling import sampling_tfi as sampling_fun
 from models.TFI.TFI_hamiltonian import hamiltonian_tfi as hamiltonian
 
 class wf_test():
-    def __init__(self,sess,wf_fun,input_num=2,output_num=1):
+    def __init__(self,sess,wf_fun,input_num=2,output_num=1,nStates=1):
         self.sess = sess
         self.input_num = input_num
         self.output_num = output_num
         self.wf_fun = wf_fun # function which is actually evaluated to return psi
 
-        self.input_state = tf.placeholder(conf.DTYPE,[self.input_num,1])
+        self.input_state = tf.placeholder(conf.DTYPE,[self.input_num,nStates])
         self.wavefunction_tf_op = self.buildOp(self.input_state)
 
 
@@ -52,10 +55,33 @@ def wf_GHZ_fun(caller,input_states):
     return psi
 
 def wf_W_fun(caller,input_states):
-    N   = tf.constant(caller.input_num-2,dtype=conf.DTYPE)
+    N   = tf.constant(-caller.input_num+2,dtype=conf.DTYPE)
     div = tf.constant(1/np.sqrt(caller.input_num),dtype=conf.DTYPE)
-    psi = tf.cast(tf.equal(tf.abs(tf.einsum('ijk->ik',input_states)),N),conf.DTYPE)
+    psi = tf.cast(tf.equal(tf.einsum('ijk->ik',input_states),N),conf.DTYPE)
     return psi
+
+def wf_absSum_fun(caller,input_states):
+    psi = tf.cast(tf.abs(tf.einsum('ijk->ik',input_states)),conf.DTYPE)
+    return psi
+
+def wf_rand_fun_maker(N):
+    probs   = nr.rand(2**N).reshape([2**N,1])
+    states,_= genAllStates(N)
+    states  = np.transpose(states)
+
+    def wf_rand_fun(state):
+        S = state.reshape(1,N)
+
+        for i in range(2**N):
+            if (states[i,:]==S).all()==True:
+                # match
+                break
+
+        return probs[i]
+
+    return probs, states, wf_rand_fun
+
+
 
 
 def test_wf():
@@ -63,8 +89,8 @@ def test_wf():
     sess    = tf.Session();
 
     # Create states
-    wf_GHZ  = wf_test(sess,wf_GHZ_fun,input_num=N)
-    wf_W    = wf_test(sess,wf_W_fun,input_num=N)
+    wf_GHZ  = wf_test(sess,wf_GHZ_fun,input_num=N,nStates=5)
+    wf_W    = wf_test(sess,wf_W_fun,input_num=N,nStates=5)
 
     # Initialise variables
     sess.run(tf.global_variables_initializer());
@@ -124,13 +150,49 @@ def test_mcg():
     from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
     from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
 
-    M = 10;
+    M = 20;
     samp    = sampler(N=N,probFun=wf_W.eval)
-    mcg1    = mcg(samp,burnIn=0,thinning=0)
+    mcg1    = mcg(samp,burnIn=10,thinning=1)
 
     # Get sample, unseeded
     S       = mcg1.getSample_MH(M)
     print('\nMarkov chain')
-    print(repr(S))
+    print(repr(np.transpose(S)))
 
-test_mcg()
+def test_mcg_nonUniformDist():
+    N  = 5
+    M = 2000;
+
+    from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
+    from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
+
+    # Create list of states, probs, psi
+    probs, states, wf_rand_fun = wf_rand_fun_maker(N)
+    probs   = np.divide(probs,np.sum(probs))
+    samp    = sampler(N=N,probFun=wf_rand_fun)
+    mcg1    = mcg(samp,burnIn=100,thinning=10)
+
+    # Calculate analytics
+    # mean
+    mean_analytic   = np.sum(np.multiply(states,probs),axis=0)
+    std_analytic    = np.sqrt(np.sum(np.multiply(np.power(np.subtract(states,mean_analytic),2.0),probs),axis=0))
+
+    print('Mean and StdDev at each site are')
+    print(mean_analytic)
+    print(std_analytic)
+
+    # Get sample
+    S       = mcg1.getSample_MH(M)
+    S       = np.transpose(S)
+
+    # Calcualte quantities
+    mean_sample     = np.divide(np.sum(S,axis=0),M)
+    std_sample      = np.sqrt(np.divide(np.sum(np.power(np.subtract(S,mean_sample),2.0),axis=0),M-1))
+
+
+    print('\nMean and StdDev at each site from sample')
+    print(mean_sample)
+    print(std_sample)
+
+
+test_mcg_nonUniformDist()

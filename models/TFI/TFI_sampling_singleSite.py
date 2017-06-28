@@ -62,28 +62,30 @@ class markovChainGenerator():
 
     def get_propState(self,S):
         # generates a new proposed state given a state S
-        accepted = False
 
         # Check if probability of old state has been calculated
         self.probOld = self.sampler.probFun(S)
+        counter     = 0
 
-        while not accepted:
-            Snew            = self.sampler.propGen(S)
-            probNew         = self.sampler.probFun(Snew)
-            #prAccept 		= min(1,(probNew/self.probOld)*(self.sampler.propFun(S,Snew)/self.sampler.propFun(Snew,S)))
-            prAccept        = min(1,(probNew/self.probOld))
+        # Propose new state and calculate probFun
+        Snew            = self.sampler.propGen(S)
+        probNew         = self.sampler.probFun(Snew)
 
-            if self.probOld == 0:
-                raise ValueError('probOld is zero, everything is broken')
-            elif np.isfinite(probNew)== False:
-                raise ValueError('probNew is not finite, everything is broken')
+        # Error checking
+        if self.probOld == 0:
+            raise ValueError('probOld is zero, everything is broken')
+        elif np.isfinite(probNew)== False:
+            raise ValueError('probNew is not finite, everything is broken')
 
-            if np.random.rand() < prAccept:
-                # step is successful
-                accepted = True
-                self.probOld= probNew
-
-        return Snew
+        # Accept/Reject step
+        #prAccept 		= min(1,(probNew/self.probOld)*(self.sampler.propFun(S,Snew)/self.sampler.propFun(Snew,S)))
+        prAccept        = min(1,(probNew/self.probOld))
+        if np.random.rand() < prAccept:
+            # step is successful
+            self.probOld= probNew
+            return Snew
+        else:
+            return S
 
 
     def getSample_MH(self,M,initState=None,useFinal=False):
@@ -105,13 +107,9 @@ class markovChainGenerator():
                 else:
                     self.initState = initState
 
-        # Print init
-        print('Init state:')
-        print(self.initState)
-        print(self.sampler.probFun(self.initState))
-
         # Create array to store states
         samples = np.zeros([self.sampler.N,M])
+        probs   = np.zeros([M])
 
         # Do burn-in
         currState = self.initState
@@ -123,6 +121,7 @@ class markovChainGenerator():
             for j in range(self.thinning):
                 currState       = self.get_propState(currState)
             samples[:,i:i+1]    = currState
+            probs[i]            = self.sampler.probFun(currState)
 
         # Store final state
         self.finalState     = currState
@@ -132,7 +131,10 @@ class markovChainGenerator():
         return np.isfinite(x)==True and x>0
 
 class sampler_TFI:
-    def __init__(self,N=None,probFun=None):
+    def __init__(self,N=None,probFun=None,flipProb=0.5):
+        # N is the number of spin sites
+        # probFun is a function which returns the probability associated with a particular configuration
+
         # Input checking
         if N is None:
             raise ValueError('N must be specified')
@@ -150,7 +152,7 @@ class sampler_TFI:
 
     def propGen(self,S):
         # Generates candidate state given previous state S
-        Snew	= S
+        Snew	= np.array(S)
 
         # Flip a random site
         Snew[np.random.randint(self.N)] *= -1

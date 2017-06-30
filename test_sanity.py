@@ -161,7 +161,7 @@ def test_mcg():
 
 def test_mcg_nonUniformDist():
     N  = 5
-    M = 2000;
+    M = 200;
 
     from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
     from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
@@ -177,7 +177,7 @@ def test_mcg_nonUniformDist():
     mean_analytic   = np.sum(np.multiply(states,probs),axis=0)
     std_analytic    = np.sqrt(np.sum(np.multiply(np.power(np.subtract(states,mean_analytic),2.0),probs),axis=0))
 
-    print('Mean and StdDev at each site are')
+    print('Mean and corrected StdDev at each site are')
     print(mean_analytic)
     print(std_analytic)
 
@@ -190,9 +190,78 @@ def test_mcg_nonUniformDist():
     std_sample      = np.sqrt(np.divide(np.sum(np.power(np.subtract(S,mean_sample),2.0),axis=0),M-1))
 
 
-    print('\nMean and StdDev at each site from sample')
+    print('\nMean and corrected StdDev at each site from sample')
     print(mean_sample)
     print(std_sample)
 
+    # Compare difference between analytic and sample means relative to analytic standard deviation
+    d_mean  = np.abs(np.subtract(mean_analytic,mean_sample))
+    mean_std= np.divide(std_analytic,np.sqrt(M))
+    d_norm  = np.divide(d_mean,mean_std)
+    print('Distance of sample mean from analytic mean, normalised by std.Dev of mean')
+    print(d_norm)
+    print('Average distance')
+    print(np.mean(d_norm))
 
-test_mcg_nonUniformDist()
+def test_mcg_nonUniformDist_Plot():
+    N = 5
+
+    from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
+    from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
+    import matplotlib.pyplot as plt
+
+    # Create list of states, probs, psi
+    probs, states, wf_rand_fun = wf_rand_fun_maker(N)
+    probs   = np.divide(probs,np.sum(probs))
+    samp    = sampler(N=N,probFun=wf_rand_fun)
+    mcg1    = mcg(samp,burnIn=100,thinning=10)
+
+    # Calculate analytics
+    mean_analytic   = np.sum(np.multiply(states,probs),axis=0)
+    std_analytic    = np.sqrt(np.sum(np.multiply(np.power(np.subtract(states,mean_analytic),2.0),probs),axis=0))
+
+    print('Mean and corrected StdDev at each site are')
+    print(mean_analytic)
+    print(std_analytic)
+
+    M = np.linspace(1000,10000,10)
+    M = np.repeat(M,10)
+    means   = np.zeros([len(M),N])
+    stds    = np.zeros([len(M),N])
+
+    for i in range(len(M)):
+        print('Processing m=%d\n' % M[i])
+        m   = M[i]
+        # Get sample
+        S       = mcg1.getSample_MH(m.astype(int))
+        S       = np.transpose(S)
+
+        # Calcualte quantities
+        mean_sample     = np.divide(np.sum(S,axis=0),m)
+        std_sample      = np.sqrt(np.divide(np.sum(np.power(np.subtract(S,mean_sample),2.0),axis=0),m-1))
+
+        means[i,:]      = mean_sample
+        stds[i,:]       = std_sample
+
+    d_mean  = np.abs(np.subtract(means,mean_analytic))
+    d_mean_avg = np.divide(np.sum(d_mean,axis=1),N)
+    d_norms = np.zeros([len(M),N])
+
+    for i in range(len(M)):
+        mean_std = np.divide(std_analytic,np.sqrt(M[i]))
+        d_norms[i,:] = np.divide(d_mean[i,:],mean_std)
+
+    d_norms_avg = np.divide(np.sum(d_norms,axis=1),N)
+    np.savez('plotNonUniDist',means,stds,probs,mean_analytic,std_analytic,d_mean,d_mean_avg,d_norms,d_norms_avg)
+
+    f, axarr = plt.subplots(2, sharex=True)
+    axarr[0].plot(M,d_mean_avg)
+    axarr[0].set_ylabel('Abs. Avg. Dist.')
+    axarr[0].grid(True)
+    axarr[1].plot(M,d_norms_avg)
+    axarr[1].set_ylabel('Normed Avg. Dist.')
+    axarr[1].set_xlabel('Samples')
+    axarr[1].grid(True)
+    plt.show()
+
+test_mcg_nonUniformDist_Plot()

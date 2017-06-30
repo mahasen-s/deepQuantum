@@ -224,8 +224,8 @@ def test_mcg_nonUniformDist_Plot():
     print(mean_analytic)
     print(std_analytic)
 
-    M = np.linspace(1000,10000,10)
-    M = np.repeat(M,10)
+    Ml = np.linspace(1000,10000,10)
+    M = np.repeat(Ml,10)
     means   = np.zeros([len(M),N])
     stds    = np.zeros([len(M),N])
 
@@ -252,13 +252,15 @@ def test_mcg_nonUniformDist_Plot():
         d_norms[i,:] = np.divide(d_mean[i,:],mean_std)
 
     d_norms_avg = np.divide(np.sum(d_norms,axis=1),N)
-    np.savez('plotNonUniDist',means,stds,probs,mean_analytic,std_analytic,d_mean,d_mean_avg,d_norms,d_norms_avg)
+    np.savez('plotNonUniDist',means=means,stds=stds,probs=probs,mean_analytic=mean_analytic,std_analytic=std_analytic,d_mean=d_mean,d_mean_avg=d_mean_avg,d_norms=d_norms,d_norms_avg=d_norms_avg)
 
     f, axarr = plt.subplots(2, sharex=True)
-    axarr[0].plot(M,d_mean_avg)
+    d_mean_avg_plot = np.divide(np.sum(np.reshape(d_mean_avg,[len(Ml),10]),axis=1),10)
+    d_norms_avg_plot = np.divide(np.sum(np.reshape(d_norms_avg,[len(Ml),10]),axis=1),10)
+    axarr[0].plot(Ml,d_mean_avg_plot,marker='o')
     axarr[0].set_ylabel('Abs. Avg. Dist.')
     axarr[0].grid(True)
-    axarr[1].plot(M,d_norms_avg)
+    axarr[1].plot(Ml,d_norms_avg_plot,marker='o')
     axarr[1].set_ylabel('Normed Avg. Dist.')
     axarr[1].set_xlabel('Samples')
     axarr[1].grid(True)

@@ -271,8 +271,8 @@ def test_mcg_nonUniformDist_Plot():
 
 def test_fullStateSpace_as_sample():
     # Calculate variational energy using the full set of states
-    N       = 2
-    alpha   = 8
+    N       = 4
+    alpha   = 4
     mcs     = 250
     optim   = 'gradient_descent'
     learn_rate  = 0.05
@@ -286,7 +286,7 @@ def test_fullStateSpace_as_sample():
     # construct wavefunction
     P       = alpha*N
     sess    = tf.Session()
-    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=4)
+    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
 
     # construct Hamiltonian
     H       = hamiltonian(wf,M=M,h_drive=1,h_inter=0.5,h_detune=0)
@@ -356,13 +356,15 @@ def test_fullStateSpace_as_sample():
     local_Evals = sess.run(H.E_vals, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
     print(local_Evals)
 
+    print("Error = %4.3e\n" % (sess.run(H_avg, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})-wf_exact[2]))
+
     sess.close()
 
     plt.figure(1)
     plt.subplot(211)
     plt.plot(np.arange(mcs),H_avg_list,marker='o')
     plt.xlabel('Epoch')
-    plt.ylabel('E_Var')
+    plt.ylabel('H_avg')
     plt.title('hDrive=1, hInter=0.5')
     plt.grid(True)
 

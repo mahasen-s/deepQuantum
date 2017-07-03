@@ -30,3 +30,5 @@ for i=1:numel(hDetunes)
 end
 
 end
+
+% computre expectation of H analytically

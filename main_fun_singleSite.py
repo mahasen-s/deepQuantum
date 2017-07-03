@@ -18,7 +18,7 @@ from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
 from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
 from models.TFI.TFI_hamiltonian import hamiltonian_tfi as hamiltonian
 
-def run_net(N=2,alpha=4,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h_drive=1,h_inter=0.5,h_detune=0,wf_exact=[],fileOut=[],verbose=False):
+def run_net(N=2,alpha=4,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h_drive=1,h_inter=0.5,h_detune=0,wf_exact=[],fileOut=[],verbose=False,nn_type='deep',layers_num=2):
     P           = alpha*N;
 
     # Instantiate TF session
@@ -26,7 +26,7 @@ def run_net(N=2,alpha=4,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h
 
     # Instantiate model: wavefunction, hamiltonian, sampling
 #    wf          = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=4);
-    wf          = wavefunction(sess,input_num=N,hidden_num=P,nn_type='shallow',layers_num=2);
+    wf          = wavefunction(sess,input_num=N,hidden_num=P,nn_type=nn_type,layers_num=layers_num);
     def costFun(x):
         psi = np.power(np.abs(wf.eval(x)),2.0)
         return psi
@@ -66,7 +66,7 @@ def run_net(N=2,alpha=4,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h
 
     # Run
     startTime   = timer();
-    for i in range(1,mcs):
+    for i in range(mcs):
         # Print values of network parameters
     #    print(sess.run(wf.a));
     #    print(sess.run(wf.b));
@@ -74,7 +74,7 @@ def run_net(N=2,alpha=4,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h
         # Get new sample
         if verbose:
             print('Begin sample')
-        sample          = mcgFun.getSample_MH(M,useFinal=True)
+        sample          = mcgFun.getSample_MH(M,useFinal=False)
         [sigx,sigz]     = H.getAuxVars(sample);
 
         # Run 1 training step. sample should be implicitly cast to an appropriate type
@@ -91,13 +91,13 @@ def run_net(N=2,alpha=4,learn_rate=0.1,optim='gradient_descent',M=100,mcs=1000,h
         print('Std. E_local real\t= %4.3e' % np.std(np.real(E_vals_current)))
         print('Std. E_local imag\t= %4.3e' % np.std(np.imag(E_vals_current)))
 
-        E_var_list[i-1] = E_var_current;
+        E_var_list[i] = E_var_current;
 
         # Compute overlap
         if computeOverlapFlag == True:
             overlap = computeOverlap(wf,wf_exact)
             print('Overlap\t\t\t= %4.3e\n' % overlap)
-            Overlap_list[i-1] = overlap
+            Overlap_list[i] = overlap
 
         if verbose:
             print('Biases')

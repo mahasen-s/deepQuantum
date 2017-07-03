@@ -312,7 +312,8 @@ def test_fullStateSpace_as_sample():
     # Build quantity to minimise
     #H_avg       = tf.divide(tf.reduce_sum(tf.multiply(H.psi,H.E_vals)), tf.multiply(tf.conj(H.psi),H.psi))
     denom       = tf.divide(1.0,tf.pow(tf.abs(tf.multiply(tf.conj(H.psi),H.psi)),2.0))
-    H_avg       = tf.scalar_mul(tf.reduce_sum(tf.multiply(H.psi,H.E_vals)),denom)
+    num         = tf.einsum('ij,ij->',H.psi,H.E_vals)
+    H_avg       = num
 
     if optim == 'gradient_descent':
         trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg);

@@ -1,7 +1,7 @@
 function exact_TFI_wrapper
 hDetunes= [0,0];
-hInters = [0,1];
-hDrives = [1,0];
+hInters = [0.5,1];
+hDrives = [1,1];
 NMax    = 15;
 method  = 'sa';
 
@@ -11,7 +11,7 @@ for i=1:numel(hDetunes)
     hDrive  = hDrives(i);
     N       = 2;
     tTaken  = 0;
-    fname   = strrep(sprintf('%s/results/exact_TFI_hDrive=%4.1f_hInter=%4.1f_hDetune=%4.1f',...
+    fname   = strrep(sprintf('%s/results/exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f',...
                 pwd,hDrive,hInter,hDetune),'.','p');
     data    = cell(NMax-N + 1, 3);
     cntr    = 1;

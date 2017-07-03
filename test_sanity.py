@@ -20,6 +20,8 @@ from lib.dq_utils import genAllStates
 from models.TFI.TFI_sampling import sampling_tfi as sampling_fun
 from models.TFI.TFI_hamiltonian import hamiltonian_tfi as hamiltonian
 
+from exact.pythonLoadHDF5 import loadMatlabHDF5 as pyMatLoad
+
 class wf_test():
     def __init__(self,sess,wf_fun,input_num=2,output_num=1,nStates=1):
         self.sess = sess
@@ -80,9 +82,6 @@ def wf_rand_fun_maker(N):
         return probs[i]
 
     return probs, states, wf_rand_fun
-
-
-
 
 def test_wf():
     N       = 3;
@@ -160,6 +159,7 @@ def test_mcg():
     print(repr(np.transpose(S)))
 
 def test_mcg_nonUniformDist():
+    # Produce random distribution, then use mcg to produce sample which has the same statistics
     N  = 5
     M = 200;
 
@@ -204,6 +204,7 @@ def test_mcg_nonUniformDist():
     print(np.mean(d_norm))
 
 def test_mcg_nonUniformDist_Plot():
+    # Same as before, but with plotting!
     N = 5
 
     from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
@@ -266,4 +267,102 @@ def test_mcg_nonUniformDist_Plot():
     axarr[1].grid(True)
     plt.show()
 
-test_mcg_nonUniformDist_Plot()
+def test_fullStateSpace_as_sample():
+    # Calculate variational energy using the full set of states
+    N       = 4
+    alpha   = 2
+    mcs     = 5
+    optim   = 'gradient_descent'
+    learn_rate  = 0.05
+
+    states,_= genAllStates(N)
+    print("States:")
+    print(states)
+
+    M       = states.shape[1]
+
+    # construct wavefunction
+    P       = alpha*N
+    sess    = tf.Session()
+    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='shallow')
+
+    # construct Hamiltonian
+    H       = hamiltonian(wf,M=M,h_drive=1,h_inter=0.5,h_detune=0)
+
+    sess.run(tf.global_variables_initializer())
+
+    # IO vars
+    H_avg_list  = np.zeros(mcs,dtype=np.float)
+    OverlapList = np.zeros(mcs,dtype=np.float)
+
+    # Exact 
+    exactVals   = pyMatLoad('./exact/results/exact_TFI_hDrive=1p0_hInter=0p5_hDetune=0p0.mat','data')
+    wf_exact    = exactVals[N-2]
+
+    # Print psi, local energy
+    [sigx,sigz] = H.getAuxVars(states)
+    print("<state|Psi> for each state in space")
+    psi_vals    = sess.run(H.psi, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    print(psi_vals)
+
+    print("Local energy for each state in space")
+    local_Evals = sess.run(H.E_vals, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    print(local_Evals)
+
+    # Build quantity to minimise
+    #H_avg       = tf.divide(tf.reduce_sum(tf.multiply(H.psi,H.E_vals)), tf.multiply(tf.conj(H.psi),H.psi))
+    denom       = tf.divide(1.0,tf.pow(tf.abs(tf.multiply(tf.conj(H.psi),H.psi)),2.0))
+    H_avg       = tf.scalar_mul(tf.reduce_sum(tf.multiply(H.psi,H.E_vals)),denom)
+
+    if optim == 'gradient_descent':
+        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg);
+    elif optim == 'adagrad':
+        trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(H_avg);
+    elif optim == 'adam':
+        trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg);
+
+    startTime   = timer()
+    for i in range(mcs):
+        psi_vals    = sess.run(trainStep, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+
+        # Compute H_avg
+        H_avg_now   = sess.run(H_avg, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+        print('H_avg\t=%4.3e' % H_avg_now)
+        H_avg_list[i]   = H_avg_now
+
+        # Compute overlap
+        overlap     = computeOverlap(wf,wf_exact)
+        print('Overlap\t=%4.3e' % overlap)
+        OverlapList[i]  = overlap
+
+    sess.close()
+    endTime     = timer()
+    print('Time elapses\t=%d seconds\n' % (endTime-startTime))
+    np.savez('test_fullStateSpace_as_sample_data',H_avg_list=H_avg_list,OverlapList=OverlapList,mcsList=range(mcs))
+
+    print("<state|Psi> for each state in space, end of sim")
+    psi_vals    = sess.run(H.psi, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    print(psi_vals)
+
+    print("Local energy for each state in space, end of sim")
+    local_Evals = sess.run(H.E_vals, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    print(local_Evals)
+
+    plt.figure(1)
+    plt.subplot(211)
+    plt.plot(np.arange(mcs),H_avg_list,marker='o')
+    plt.xlabel('Epoch')
+    plt.ylabel('E_Var')
+    plt.title('hDrive=1, hInter=0.5')
+    plt.grid(True)
+
+    plt.subplot(212)
+    plt.plot(np.arange(mcs),OverlapList,marker='o')
+    plt.xlabel('Epoch')
+    plt.ylabel('Overlap')
+    plt.grid(True)
+
+    plt.show()
+
+
+test_fullStateSpace_as_sample()

@@ -29,8 +29,8 @@ class hamiltonian_tfi():
 
     def build_E_var(self):
         # Add sig_z terms
-        psi         = self.wf.buildOp(self.input_states);
-        E_sig_z     = tf.scalar_mul(self.h_inter,tf.multiply(psi,self.sigz));
+        self.psi    = self.wf.buildOp(self.input_states);
+        E_sig_z     = tf.scalar_mul(self.h_inter,tf.multiply(self.psi,self.sigz));
         E_sig_x     = tf.scalar_mul(self.h_drive,tf.einsum('ij->j',self.wf.buildOp(self.sigx)))
 
         if utils.tf_is_cmplx(conf.DTYPE)==True:
@@ -40,7 +40,7 @@ class hamiltonian_tfi():
 
         self.E_vals = tf.add(E_sig_z,E_sig_x)
         self.E_var  = tf.reduce_sum(self.E_vals)
-        #self.E_var  = tf.reduce_sum(tf.divide(self.E_vals,psi)); # incorrect, not norm for e local
+       # self.E_var  = tf.reduce_sum(tf.divide(self.E_vals,psi)); # incorrect, not norm for e local
 
         # TEMPORARY LINE!! SHOULD MINIMIZE VARIANCE!
         if utils.tf_is_cmplx(conf.DTYPE)==True:

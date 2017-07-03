@@ -22,6 +22,8 @@ from models.TFI.TFI_hamiltonian import hamiltonian_tfi as hamiltonian
 
 from exact.pythonLoadHDF5 import loadMatlabHDF5 as pyMatLoad
 
+tf.logging.set_verbosity(tf.logging.ERROR)
+
 class wf_test():
     def __init__(self,sess,wf_fun,input_num=2,output_num=1,nStates=1):
         self.sess = sess
@@ -269,9 +271,9 @@ def test_mcg_nonUniformDist_Plot():
 
 def test_fullStateSpace_as_sample():
     # Calculate variational energy using the full set of states
-    N       = 4
-    alpha   = 2
-    mcs     = 5
+    N       = 2
+    alpha   = 8
+    mcs     = 250
     optim   = 'gradient_descent'
     learn_rate  = 0.05
 
@@ -284,7 +286,7 @@ def test_fullStateSpace_as_sample():
     # construct wavefunction
     P       = alpha*N
     sess    = tf.Session()
-    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='shallow')
+    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=4)
 
     # construct Hamiltonian
     H       = hamiltonian(wf,M=M,h_drive=1,h_inter=0.5,h_detune=0)
@@ -296,24 +298,30 @@ def test_fullStateSpace_as_sample():
     OverlapList = np.zeros(mcs,dtype=np.float)
 
     # Exact 
-    exactVals   = pyMatLoad('./exact/results/exact_TFI_hDrive=1p0_hInter=0p5_hDetune=0p0.mat','data')
+    #exactVals   = pyMatLoad('./exact/results/exact_TFI_hDrive=1p0_hInter=0p5_hDetune=0p0.mat','data')
+    exactVals   = pyMatLoad('test.mat','data')
     wf_exact    = exactVals[N-2]
 
     # Print psi, local energy
     [sigx,sigz] = H.getAuxVars(states)
-    print("<state|Psi> for each state in space")
+    print("\n<state|Psi> for each state in space")
     psi_vals    = sess.run(H.psi, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
     print(psi_vals)
 
-    print("Local energy for each state in space")
+    print("\nLocal energy for each state in space")
     local_Evals = sess.run(H.E_vals, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
     print(local_Evals)
 
     # Build quantity to minimise
     #H_avg       = tf.divide(tf.reduce_sum(tf.multiply(H.psi,H.E_vals)), tf.multiply(tf.conj(H.psi),H.psi))
-    denom       = tf.divide(1.0,tf.pow(tf.abs(tf.multiply(tf.conj(H.psi),H.psi)),2.0))
+    denom       = tf.reduce_sum(tf.pow(tf.abs(H.psi),2.0))
     num         = tf.einsum('ij,ij->',H.psi,H.E_vals)
-    H_avg       = num
+    H_avg       = tf.divide(num,tf.complex(denom,np.float64(0.0)))
+
+    print('\nInitial H_avg')
+    print(sess.run(H_avg, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz}))
+
+    H_avg       = tf.real(H_avg)
 
     if optim == 'gradient_descent':
         trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg);
@@ -333,10 +341,9 @@ def test_fullStateSpace_as_sample():
 
         # Compute overlap
         overlap     = computeOverlap(wf,wf_exact)
-        print('Overlap\t=%4.3e' % overlap)
+        print('Overlap\t=%4.3e\n' % overlap)
         OverlapList[i]  = overlap
-
-    sess.close()
+  
     endTime     = timer()
     print('Time elapses\t=%d seconds\n' % (endTime-startTime))
     np.savez('test_fullStateSpace_as_sample_data',H_avg_list=H_avg_list,OverlapList=OverlapList,mcsList=range(mcs))
@@ -348,6 +355,8 @@ def test_fullStateSpace_as_sample():
     print("Local energy for each state in space, end of sim")
     local_Evals = sess.run(H.E_vals, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
     print(local_Evals)
+
+    sess.close()
 
     plt.figure(1)
     plt.subplot(211)
@@ -364,6 +373,5 @@ def test_fullStateSpace_as_sample():
     plt.grid(True)
 
     plt.show()
-
 
 test_fullStateSpace_as_sample()

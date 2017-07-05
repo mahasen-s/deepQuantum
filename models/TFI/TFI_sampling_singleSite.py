@@ -100,13 +100,13 @@ class markovChainGenerator():
             if initState is None:
                 self.initState = self.get_initState()
             else:
-                # Check if state is valid
+                # Check if state is valid (impose that prob msut be real)
                 self.probOld    = self.sampler.probFun(initState)
-                if self.isLegalProb(self.probOld)==False:
-                    raise ValueError('Supplied state has pathological probability')
+                if self.isLegalProb(self.probOld)==False or np.isreal(self.probOld)==False:
+                    self.isLegalProb_info(self.probOld)
+                    ('Supplied state has pathological probability')
                 else:
                     self.initState = initState
-
         # Create array to store states
         samples = np.zeros([self.sampler.N,M])
         probs   = np.zeros([M])
@@ -121,7 +121,7 @@ class markovChainGenerator():
             for j in range(self.thinning):
                 currState       = self.get_propState(currState)
             samples[:,i:i+1]    = currState
-            probs[i]            = self.sampler.probFun(currState)
+            probs[i]            = self.isLegalProb_inline(self.sampler.probFun(currState))
 
         # Store final state
         self.finalState     = currState
@@ -129,6 +129,16 @@ class markovChainGenerator():
 
     def isLegalProb(self,x):
         return np.isfinite(x)==True and x>0
+
+    def isLegalProb_inline(self,x):
+        if x == False:
+            raise ValueError('Prob is not finite, %s' % repr(x))
+        if x<0:
+            raise ValueError('Prob is negative, %s' % repr(x))
+        if np.isreal(x)==False:
+            raise ValueError('Prob is not real, %s' % repr(x))
+        return x
+
 
 class sampler_TFI:
     def __init__(self,N=None,probFun=None,flipProb=0.5):

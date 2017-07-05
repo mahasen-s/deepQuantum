@@ -298,7 +298,7 @@ def test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gra
     try:
         exactVals   = pyMatLoad(exactFile,'data')
     except:
-        print('Exact file not found')
+        raise ValueError('File not found: %s' % exactFile)
 
 
     wf_exact    = exactVals[N-2]
@@ -354,7 +354,7 @@ def test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gra
         overlap     = computeOverlap(wf,wf_exact)
         print('Overlap\t=%4.3e\n' % overlap)
         OverlapList[i]  = overlap
-  
+
     endTime     = timer()
     print('Time elapses\t=%d seconds\n' % (endTime-startTime))
     np.savez('test_fullStateSpace_as_sample_data',H_avg_list=H_avg_list,OverlapList=OverlapList,mcsList=range(mcs))
@@ -394,86 +394,93 @@ def test_fullStateSpace_as_sample_plot():
 
 def test_fullStateSpace_as_sample_plot_multi():
     # Plot absolute difference between deepQuantum and analytic
-    mcs     = 1000;
+    mcs     = 4000;
     optim = 'adam'
-    lrate=0.05
-    mcs_list, H1, _, E1 = test_fullStateSpace_as_sample(N=4,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=1,h_inter=0.5,h_detune=0)
-    _, H2, _ , E2 = test_fullStateSpace_as_sample(N=6,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=1,h_inter=0.5,h_detune=0)
-    _, H3, _ , E3 = test_fullStateSpace_as_sample(N=4,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=0.5,h_inter=1,h_detune=0)
-    _, H4, _ , E4= test_fullStateSpace_as_sample(N=6,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=0.5,h_inter=1,h_detune=0)
+    lrate=0.0025
+    mcs_list, H1, _, E1 = test_fullStateSpace_as_sample(N=6,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=1,h_inter=0.5,h_detune=0)
+    mcs_list2, H2, _ , E2 = test_fullStateSpace_as_sample(N=8,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=1,h_inter=0.5,h_detune=0)
+    _, H3, _ , E3 = test_fullStateSpace_as_sample(N=6,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=0.5,h_inter=1,h_detune=0)
+    _, H4, _ , E4= test_fullStateSpace_as_sample(N=8,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=0.5,h_inter=1,h_detune=0)
+
+    np.savez('data_FSS_as_sample_multi',mcs_list=mcs_list,mcs_list2=mcs_list2,H1=H1,H2=H2,H3=H3,H4=H4,E1=E1,E2=E2,E3=E3,E4=E4)
+    def wrapFun(x):
+        return np.abs(x)
+
+    def plotFun(*args,**kwargs):
+        return plt.semilogy(*args,**kwargs)
 
     plt.figure(1)
     plt.subplot(221)
-    plt.semilogy(mcs_list,np.abs(H1-E1),marker='o')
+    plotFun(mcs_list,wrapFun(H1-E1),marker='o')
     plt.xlabel('Epoch')
     plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=4, hDrive=1, hInter=0.5')
+    plt.title('N=6, hDrive=1, hInter=0.5, learn_rate=0.0025')
     plt.grid(True)
 
     plt.subplot(222)
-    plt.semilogy(mcs_list,np.abs(H3-E3),marker='o')
+    plotFun(mcs_list,wrapFun(H3-E3),marker='o')
     plt.xlabel('Epoch')
     plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=4, hDrive=0.5, hInter=1')
+    plt.title('N=6, hDrive=0.5, hInter=1, learn_rate=0.0025')
     plt.grid(True)
 
     plt.subplot(223)
-    plt.semilogy(mcs_list,np.abs(H2-E2),marker='o')
+    plotFun(mcs_list2,wrapFun(H2-E2),marker='o')
     plt.xlabel('Epoch')
     plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=6, hDrive=1, hInter=0.5')
+    plt.title('N=8, hDrive=1, hInter=0.5, learn_rate=0.0025')
     plt.grid(True)
 
     plt.subplot(224)
-    plt.semilogy(mcs_list,np.abs(H4-E4),marker='o')
+    plotFun(mcs_list2,wrapFun(H4-E4),marker='o')
     plt.xlabel('Epoch')
     plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=6, hDrive=0.5, hInter=1')
+    plt.title('N=8, hDrive=0.5, hInter=1, learn_rate=0.0025')
     plt.grid(True)
 
     plt.show()
 
-def test_MC_as_sample():
-    # Calculate variational energy using a markov chain sample
-    N       = 4
-    alpha   = 4
-    mcs     = 250
-    optim   = 'adam'
-    learn_rate  = 0.05
+def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0,mcg_useFinal=False):
+    # Calculate variational energy using the full set of states and compare with a MC sample
+    from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
+    from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
 
+    # EXACT VARS
+    exactFile   = "/exact/results/exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
+    exactFile   = '.' + exactFile.replace('.','p') + '.mat'
+    try:
+        exactVals   = pyMatLoad(exactFile,'data')
+    except:
+        raise ValueError('File not found: %s' % exactFile)
+    wf_exact    = exactVals[N-2]
+
+    # FULL STATE SPACE
     states,_= genAllStates(N)
     print("States:")
     print(states)
 
-    M       = states.shape[1]
+    M_full  = states.shape[1]
 
     # construct wavefunction
     P       = alpha*N
     sess    = tf.Session()
-    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
+    wf_full = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
 
     # construct Hamiltonian
-    H       = hamiltonian(wf,M=M,h_drive=1,h_inter=0.5,h_detune=0)
+    H_full       = hamiltonian(wf_full,M=M_full,h_drive=1,h_inter=0.5,h_detune=0)
 
     # IO vars
-    H_avg_list  = np.zeros(mcs,dtype=np.float)
-    OverlapList = np.zeros(mcs,dtype=np.float)
-
-    # Exact 
-    #exactVals   = pyMatLoad('./exact/results/exact_TFI_hDrive=1p0_hInter=0p5_hDetune=0p0.mat','data')
-    exactVals   = pyMatLoad('test.mat','data')
-    wf_exact    = exactVals[N-2]
+    H_list_full = np.zeros(mcs,dtype=np.float)
+    OL_list_full= np.zeros(mcs,dtype=np.float)
+    var_list_full=np.zeros(mcs,dtype=np.float)
 
     # Get aux vars
-    [sigx,sigz] = H.getAuxVars(states)
+    [sigx_full,sigz_full] = H_full.getAuxVars(states)
 
     # Build quantity to minimise
-    #H_avg       = tf.divide(tf.reduce_sum(tf.multiply(H.psi,H.E_vals)), tf.multiply(tf.conj(H.psi),H.psi))
-    denom       = tf.reduce_sum(tf.pow(tf.abs(H.psi),2.0))
-    num         = tf.einsum('ij,ij->',H.psi,H.E_vals)
-    H_avg       = tf.divide(num,tf.complex(denom,np.float64(0.0)))
-
-    H_avg       = tf.real(H_avg)
+    denom  = tf.reduce_sum(tf.pow(tf.abs(H_full.psi),2.0))
+    num    = tf.einsum('ij,ij->',H_full.psi,H_full.E_vals)
+    H_avg  = tf.real(tf.divide(num,tf.complex(denom,np.float64(0.0))))
 
     if optim == 'gradient_descent':
         trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg);
@@ -482,65 +489,125 @@ def test_MC_as_sample():
     elif optim == 'adam':
         trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg);
 
+    # SAMPLE SPACE
+    H_list_samp = np.zeros(mcs,dtype=np.float)
+    OL_list_samp= np.zeros(mcs,dtype=np.float)
+    var_list_samp= np.zeros(mcs,dtype=np.float)
+
+    # Initialise vars
     sess.run(tf.global_variables_initializer())
+
+    # Create sampler
+    def probFun(x):
+        return np.power(np.abs(np.squeeze(wf_full.eval(x))),2.0)
+    samp    = sampler(N=N,probFun=probFun)
+    mcg1    = mcg(samp,burnIn=5*N,thinning=2*N)
+    sample  = mcg1.getSample_MH(M_full)
+
+    # Feeding wrappers
+    def feed(H,f,S):
+        [sigx_t,sigz_t] = H.getAuxVars(S)
+        return sess.run(f, feed_dict={H.input_states: S, H.sigx: sigx_t, H.sigz: sigz_t})
 
     # Print values
     print("\n<state|Psi> for each state in space")
-    psi_vals    = sess.run(H.psi, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    psi_vals    = feed(H_full,H_full.psi,states)
     print(psi_vals)
 
     print("\nLocal energy for each state in space")
-    local_Evals = sess.run(H.E_vals, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    local_Evals = feed(H_full,H_full.E_vals,states)
     print(local_Evals)
 
-    print('\nInitial H_avg')
-    print(sess.run(H_avg, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz}))
+    print('\nInitial H_avg over all states')
+    print(feed(H_full,H_avg,states))
+
+    print('\nInitial H_avg over all sample')
+    print(feed(H_full,H_avg,sample))
 
     startTime   = timer()
 
     for i in range(mcs):
-        psi_vals    = sess.run(trainStep, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+        print("\nEpoch %d" % i)
+        psi_vals    = feed(H_full,trainStep,states)
+
+        # Get new sample
+        sample = mcg1.getSample_MH(M_full,useFinal=mcg_useFinal)
 
         # Compute H_avg
-        H_avg_now   = sess.run(H_avg, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
-        print('H_avg\t=%4.3e' % H_avg_now)
-        H_avg_list[i]   = H_avg_now
+        H_avg_now   = feed(H_full,H_avg,states)
+        print('H_avg_full err\t=%4.3e' % (H_avg_now-wf_exact[2]))
+        H_list_full[i]   = H_avg_now
+
+        H_avg_now   = feed(H_full,H_avg,sample)
+        print('H_avg_samp err\t=%4.3e' % (H_avg_now-wf_exact[2]))
+        H_list_samp[i]   = H_avg_now
 
         # Compute overlap
-        overlap     = computeOverlap(wf,wf_exact)
-        print('Overlap\t=%4.3e\n' % overlap)
-        OverlapList[i]  = overlap
-  
+        overlap     = computeOverlap(wf_full,wf_exact)
+        print('Overlap\t=%4.3e' % overlap)
+        OL_list_full[i]  = overlap
+
+        # Compute variation
+        var_list_full[i]=np.var(H_list_full[0:i+1])
+        var_list_samp[i]=np.var(H_list_samp[0:i+1])
+
     endTime     = timer()
-    print('Time elapses\t=%d seconds\n' % (endTime-startTime))
-    np.savez('test_fullStateSpace_as_sample_data',H_avg_list=H_avg_list,OverlapList=OverlapList,mcsList=range(mcs))
+    print('Time elapsed\t=%d seconds\n' % (endTime-startTime))
+    np.savez('test_fullStateSpace_as_sample_data',\
+             H_list_full=H_list_full,\
+             H_list_samp=H_list_samp,\
+             OL_list_full=OL_list_full,\
+             var_list_samp=var_list_samp,\
+             var_list_full=var_list_full,\
+             mcsList=range(mcs))
 
     print("<state|Psi> for each state in space, end of sim")
-    psi_vals    = sess.run(H.psi, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    psi_vals    = feed(H_full,H_full.psi,states)
     print(psi_vals)
 
     print("Local energy for each state in space, end of sim")
-    local_Evals = sess.run(H.E_vals, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})
+    local_Evals = feed(H_full,H_full.E_vals,states)
     print(local_Evals)
 
-    print("Error = %4.3e\n" % (sess.run(H_avg, feed_dict={H.input_states: states, H.sigx: sigx, H.sigz: sigz})-wf_exact[2]))
-
+    print("Full Error \t= %4.3e\n" % (feed(H_full,H_avg,states)-wf_exact[2]))
+    print("Samp Error \t= %4.3e\n" % (feed(H_full,H_avg,sample)-wf_exact[2]))
     sess.close()
 
-    plt.figure(1)
-    plt.subplot(211)
-    plt.plot(np.arange(mcs),H_avg_list,marker='o')
-    plt.xlabel('Epoch')
-    plt.ylabel('H_avg')
-    plt.title('hDrive=1, hInter=0.5')
-    plt.grid(True)
+    return np.arange(mcs), H_list_full, H_list_samp, var_list_samp, var_list_full, OL_list_full, wf_exact[2]
 
-    plt.subplot(212)
-    plt.plot(np.arange(mcs),OverlapList,marker='o')
+def test_fullStateSpace_and_MC_as_sample_plot():
+    mcs_list, H_list_full, H_list_samp, var_list_samp, var_list_full, OL_list_full, E_0 = \
+            test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,\
+                                                      optim='adam',\
+                                                      h_drive=1,h_inter=0.5,h_detune=0,\
+                                                mcg_useFinal=True)
+
+    def wrapFun(x):
+        return np.abs(x)
+
+    def plotFun(*args,**kwargs):
+        return plt.semilogy(*args,**kwargs)
+
+    plt.figure(1)
+    #plt.subplot(121)
+    p1, = plotFun(mcs_list,wrapFun(H_list_full-E_0),marker='o',label='Full space')
+    p2, = plotFun(mcs_list,wrapFun(H_list_samp-E_0),marker='o',label='Sample')
     plt.xlabel('Epoch')
-    plt.ylabel('Overlap')
+    plt.ylabel('Abs(H_avg-E_0)')
+    plt.title('N=4, hDrive=1, hInter=0.5, learn_rate=0.005')
     plt.grid(True)
+    plt.legend(handles=[p1,p2])
+
+    #plt.subplot(122)
+    #v1, = plt.plot(mcs_list,var_list_full,marker='o',label='Full space')
+    #v2, = plt.plot(mcs_list,var_list_samp,marker='o',label='Sample')
+    #plt.xlabel('Epoch')
+    #plt.ylabel('Var(H_avg)')
+    #plt.title('N=4, hDrive=0.5, hInter=1, learn_rate=0.005')
+    #plt.grid(True)
+    #plt.legend(handles=[v1,v2])
 
     plt.show()
 
-test_fullStateSpace_as_sample_plot_multi()
+
+test_fullStateSpace_and_MC_as_sample_plot()

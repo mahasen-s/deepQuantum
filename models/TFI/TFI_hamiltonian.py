@@ -25,9 +25,9 @@ class hamiltonian_tfi():
         self.sigx           = tf.placeholder(conf.DTYPE,shape=[self.N,self.N,M])
         self.sigz           = tf.placeholder(conf.DTYPE,shape=[M])
 
-        self.build_E_var()
+        self.build_E_graphs()
 
-    def build_E_var(self):
+    def build_E_graphs(self):
         # Add sig_z terms
         self.psi    = self.wf.buildOp(self.input_states);
         E_sig_z     = tf.scalar_mul(self.h_inter,tf.multiply(self.psi,self.sigz));
@@ -38,16 +38,10 @@ class hamiltonian_tfi():
         else:
             absFun = tf.abs
 
-        self.E_vals = tf.add(E_sig_z,E_sig_x)
-        self.E_var  = tf.reduce_sum(self.E_vals)
-       # self.E_var  = tf.reduce_sum(tf.divide(self.E_vals,psi)); # incorrect, not norm for e local
+        self.E_proj_unnorm  = tf.add(E_sig_z,E_sig_x)
+        self.E_locs         = tf.divide(self.E_proj_unnorm,self.psi)
+        self.E_locs_mean_re = tf.reduce_mean(tf.real(self.E_locs))
 
-        # TEMPORARY LINE!! SHOULD MINIMIZE VARIANCE!
-        if utils.tf_is_cmplx(conf.DTYPE)==True:
-            #self.E_var   = utils.tf_cmplx_abs(self.E_var)
-            self.E_var   = tf.real(self.E_var);
-
-        # Need something here for complex handling
 
     def getAuxVars(self,S):
         if conf.DTYPE==tf.float64 or conf.DTYPE==tf.complex128:

@@ -24,6 +24,9 @@ from exact.pythonLoadHDF5 import loadMatlabHDF5 as pyMatLoad
 
 from functools import partial, wraps
 
+from lib.dq_utils import Bunch
+import pickle
+
 tf.logging.set_verbosity(tf.logging.ERROR)
 
 class wf_test():
@@ -440,7 +443,7 @@ def test_fullStateSpace_as_sample_plot_multi():
 
     plt.show()
 
-def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0,mcg_useFinal=False):
+def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0,mcg_useFinal=False,fileOut='pickledData'):
     # Calculate variational energy using the full set of states and compare with a MC sample
     from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
     from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
@@ -458,7 +461,6 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,opt
     states,_= genAllStates(N)
     print("States:")
     print(states)
-
     M_full  = states.shape[1]
 
     # construct wavefunction
@@ -468,31 +470,38 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,opt
 
     # construct Hamiltonian
     H_full       = hamiltonian(wf_full,M=M_full,h_drive=1,h_inter=0.5,h_detune=0)
+    H_samp       = hamiltonian(wf_full,M=M_samp,h_drive=1,h_inter=0.5,h_detune=0)
 
     # IO vars
     H_list_full = np.zeros(mcs,dtype=np.float)
     OL_list_full= np.zeros(mcs,dtype=np.float)
     var_list_full=np.zeros(mcs,dtype=np.float)
+    E_vals_list_full    = np.zeros([mcs,M_full],dtype=complex)
 
     # Get aux vars
     [sigx_full,sigz_full] = H_full.getAuxVars(states)
 
     # Build quantity to minimise
-    denom  = tf.reduce_sum(tf.pow(tf.abs(H_full.psi),2.0))
-    num    = tf.einsum('ij,ij->',H_full.psi,H_full.E_vals)
-    H_avg  = tf.real(tf.divide(num,tf.complex(denom,np.float64(0.0))))
+    denom_full  = tf.reduce_sum(tf.pow(tf.abs(H_full.psi),2.0))
+    num_full    = tf.einsum('ij,ij->',tf.conj(H_full.psi),H_full.E_proj_unnorm)
+    H_avg_full  = tf.real(tf.divide(num_full,tf.complex(denom_full,np.float64(0.0))))
+
+    denom_samp  = tf.reduce_sum(tf.pow(tf.abs(H_samp.psi),2.0))
+    num_samp    = tf.einsum('ij,ij->',tf.conj(H_samp.psi),H_samp.E_proj_unnorm)
+    H_avg_samp  = tf.real(tf.divide(num_samp,tf.complex(denom_samp,np.float64(0.0))))
 
     if optim == 'gradient_descent':
-        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg);
+        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg_full);
     elif optim == 'adagrad':
-        trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(H_avg);
+        trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(H_avg_full);
     elif optim == 'adam':
-        trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg);
+        trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg_full);
 
     # SAMPLE SPACE
     H_list_samp = np.zeros(mcs,dtype=np.float)
     OL_list_samp= np.zeros(mcs,dtype=np.float)
     var_list_samp= np.zeros(mcs,dtype=np.float)
+    E_vals_list_samp    = np.zeros([mcs,M_samp],dtype=complex)
 
     # Initialise vars
     sess.run(tf.global_variables_initializer())
@@ -502,7 +511,7 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,opt
         return np.power(np.abs(np.squeeze(wf_full.eval(x))),2.0)
     samp    = sampler(N=N,probFun=probFun)
     mcg1    = mcg(samp,burnIn=5*N,thinning=2*N)
-    sample  = mcg1.getSample_MH(M_full)
+    sample  = mcg1.getSample_MH(M_samp)
 
     # Feeding wrappers
     def feed(H,f,S):
@@ -515,14 +524,14 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,opt
     print(psi_vals)
 
     print("\nLocal energy for each state in space")
-    local_Evals = feed(H_full,H_full.E_vals,states)
+    local_Evals = feed(H_full,H_full.E_locs,states)
     print(local_Evals)
 
     print('\nInitial H_avg over all states')
-    print(feed(H_full,H_avg,states))
+    print(feed(H_full,H_avg_full,states))
 
     print('\nInitial H_avg over all sample')
-    print(feed(H_full,H_avg,sample))
+    print(feed(H_samp,H_avg_samp,sample))
 
     startTime   = timer()
 
@@ -531,14 +540,14 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,opt
         psi_vals    = feed(H_full,trainStep,states)
 
         # Get new sample
-        sample = mcg1.getSample_MH(M_full,useFinal=mcg_useFinal)
+        sample = mcg1.getSample_MH(M_samp,useFinal=mcg_useFinal)
 
         # Compute H_avg
-        H_avg_now   = feed(H_full,H_avg,states)
+        H_avg_now   = feed(H_full,H_avg_full,states)
         print('H_avg_full err\t=%4.3e' % (H_avg_now-wf_exact[2]))
         H_list_full[i]   = H_avg_now
 
-        H_avg_now   = feed(H_full,H_avg,sample)
+        H_avg_now   = feed(H_samp,H_avg_samp,sample)
         print('H_avg_samp err\t=%4.3e' % (H_avg_now-wf_exact[2]))
         H_list_samp[i]   = H_avg_now
 
@@ -547,67 +556,144 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,opt
         print('Overlap\t=%4.3e' % overlap)
         OL_list_full[i]  = overlap
 
-        # Compute variation
-        var_list_full[i]=np.var(H_list_full[0:i+1])
-        var_list_samp[i]=np.var(H_list_samp[0:i+1])
+        # Compute local energies and store
+        E_vals_list_full[i:i+1,:]   = feed(H_full,H_full.E_locs,states)
+        E_vals_list_samp[i:i+1,:]   = feed(H_samp,H_samp.E_locs,sample)
 
     endTime     = timer()
     print('Time elapsed\t=%d seconds\n' % (endTime-startTime))
-    np.savez('test_fullStateSpace_as_sample_data',\
-             H_list_full=H_list_full,\
-             H_list_samp=H_list_samp,\
-             OL_list_full=OL_list_full,\
-             var_list_samp=var_list_samp,\
-             var_list_full=var_list_full,\
-             mcsList=range(mcs))
+
+
+    # Save data
+    data    = Bunch()
+    data.H_list_full    = H_list_full
+    data.H_list_samp    = H_list_samp
+    data.OL_list_full   = OL_list_full
+    data.E_vals_list_full   = E_vals_list_full
+    data.E_vals_list_samp   = E_vals_list_samp
+    data.N              = N
+    data.alpha          = alpha
+    data.mcs            = mcs
+    data.h_drive        = h_drive
+    data.h_inter        = h_inter
+    data.h_detune       = h_detune
+    data.M              = M_samp
+    data.mcs_list       = np.arange(mcs)
+    data.E_0            = wf_exact[2]
+    data.learn_rate     = learn_rate
+
+    fileObj     = open(fileOut,'wb')
+    pickle.dump(data,fileObj)
+    fileObj.close()
 
     print("<state|Psi> for each state in space, end of sim")
     psi_vals    = feed(H_full,H_full.psi,states)
     print(psi_vals)
 
     print("Local energy for each state in space, end of sim")
-    local_Evals = feed(H_full,H_full.E_vals,states)
+    local_Evals = feed(H_full,H_full.E_locs,states)
     print(local_Evals)
 
-    print("Full Error \t= %4.3e\n" % (feed(H_full,H_avg,states)-wf_exact[2]))
-    print("Samp Error \t= %4.3e\n" % (feed(H_full,H_avg,sample)-wf_exact[2]))
+    print("Full Error \t= %4.3e\n" % (feed(H_full,H_avg_full,states)-wf_exact[2]))
+    print("Samp Error \t= %4.3e\n" % (feed(H_samp,H_avg_samp,sample)-wf_exact[2]))
     sess.close()
 
-    return np.arange(mcs), H_list_full, H_list_samp, var_list_samp, var_list_full, OL_list_full, wf_exact[2]
+def test_fullStateSpace_and_MC_as_sample_run():
+    N           = 4
+    alpha       = 4
+    mcs         = 200
+    learn_rate  = 0.05
+    h_drive     = 1
+    h_inter     = 0.5
+    h_detune    = 0
+    fileOut     = 'test_data1'
 
-def test_fullStateSpace_and_MC_as_sample_plot():
-    mcs_list, H_list_full, H_list_samp, var_list_samp, var_list_full, OL_list_full, E_0 = \
-            test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,\
-                                                      optim='adam',\
-                                                      h_drive=1,h_inter=0.5,h_detune=0,\
-                                                mcg_useFinal=True)
+    test_fullStateSpace_and_MC_as_sample(   N=N,alpha=alpha,mcs=mcs,learn_rate=learn_rate,\
+                                            optim='adam',\
+                                            h_drive=h_drive,h_inter=h_inter,h_detune=h_detune,\
+                                            mcg_useFinal=True, \
+                                            fileOut     = fileOut)
 
-    def wrapFun(x):
-        return np.abs(x)
 
-    def plotFun(*args,**kwargs):
-        return plt.semilogy(*args,**kwargs)
+def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
+    fileObj     = open(fileOut,'rb')
+    data        = pickle.load(fileObj)
+    fileObj.close()
+
+    def plotFun(x,y,label):
+        if plotLog == False:
+            handle  = plt.plot(x,y,marker='o',label=label)
+        else:
+            handle  = plt.semilogy(x,np.abs(y),marker='o',label=label)
+        return handle
 
     plt.figure(1)
-    #plt.subplot(121)
-    p1, = plotFun(mcs_list,wrapFun(H_list_full-E_0),marker='o',label='Full space')
-    p2, = plotFun(mcs_list,wrapFun(H_list_samp-E_0),marker='o',label='Sample')
-    plt.xlabel('Epoch')
-    plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=4, hDrive=1, hInter=0.5, learn_rate=0.005')
+    # Plot <H>_var-E_0
+    plt.subplot(231)
+    p1,  = plotFun(data.mcs_list,data.H_list_samp-data.E_0,'Sample')
+    p2,  = plotFun(data.mcs_list,data.H_list_full-data.E_0,'Full space')
+    plt.xlabel('Step')
+    plt.ylabel('H_avg-E_0')
+    plt.title('N=%d, hDrive=%2.1f, hInter=%2.1f, learn_rate=%2.2e' % (data.N,data.h_drive,data.h_inter,data.learn_rate))
     plt.grid(True)
     plt.legend(handles=[p1,p2])
 
-    #plt.subplot(122)
-    #v1, = plt.plot(mcs_list,var_list_full,marker='o',label='Full space')
-    #v2, = plt.plot(mcs_list,var_list_samp,marker='o',label='Sample')
-    #plt.xlabel('Epoch')
-    #plt.ylabel('Var(H_avg)')
-    #plt.title('N=4, hDrive=0.5, hInter=1, learn_rate=0.005')
-    #plt.grid(True)
-    #plt.legend(handles=[v1,v2])
+    # Plot distance from exact
+    plt.subplot(234)
+    plotFun(data.mcs_list,data.OL_list_full-1,'Overlap')
+    plt.xlabel('Step')
+    plt.ylabel('Overlap-1')
+    plt.title('Distance from perfect overlap of NN and Exact wf')
+    plt.grid(True)
+
+ #   p1, = plt.semilogy(data.mcs_list,np.abs(data.H_list_full-data.E_0),marker='o',label='Full space')
+ #   p2, = plt.semilogy(data.mcs_list,np.abs(data.H_list_samp-data.E_0),marker='o',label='Sample')
+ #   plt.xlabel('Step')
+ #   plt.ylabel('abs(H_avg-E_0)')
+ #   plt.grid(True)
+    #plt.legend(handles=[p1,p2])
+
+    # Plot mean of real part of local energies at each step
+    plt.subplot(232)
+  #  p1, = plt.plot(data.mcs_list,np.mean(np.real(data.E_vals_list_full),axis=1),marker='o',label='Full space')
+    p2, = plotFun(data.mcs_list,np.mean(np.real(data.E_vals_list_samp),axis=1),'Sample')
+    plt.xlabel('Step')
+    plt.ylabel('mean(re(E_loc))')
+    plt.title('Mean of real part of E_loc')
+    plt.grid(True)
+    #plt.legend(handles=[p1,p2])
+
+    # Plot mean of imag part of local energies at each step
+    plt.subplot(233)
+    p1, = plotFun(data.mcs_list,np.mean(np.imag(data.E_vals_list_samp),axis=1),'Sample')
+    p2, = plotFun(data.mcs_list,np.mean(np.imag(data.E_vals_list_full),axis=1),'Full space')
+    plt.xlabel('Step')
+    plt.ylabel('mean(im(E_loc))')
+    plt.title('Mean of imag part of E_loc')
+    plt.grid(True)
+    #plt.legend(handles=[p1,p2])
+
+    # Plot unbiased var of real part of local energies at each step
+    plt.subplot(235)
+    p1, = plotFun(data.mcs_list,np.var(np.real(data.E_vals_list_full),axis=1,ddof=1),'Full space')
+    #p2, = plt.plot(data.mcs_list,np.var(np.real(data.E_vals_list_samp),axis=1,ddof=1),marker='o',label='Sample')
+    plt.xlabel('Step')
+    plt.ylabel('var(re(E_loc))')
+    plt.title('Var in real part of E_loc')
+    plt.grid(True)
+    #plt.legend(handles=[p1,p2])
+
+    # Plot unbiased var of imag part of local energies at each step
+    plt.subplot(236)
+    p1, = plotFun(data.mcs_list,np.var(np.imag(data.E_vals_list_full),axis=1,ddof=1),'Full space')
+    #p2, = plt.plot(data.mcs_list,np.var(np.imag(data.E_vals_list_samp),axis=1,ddof=1),marker='o',label='Sample')
+    plt.xlabel('Epoch')
+    plt.ylabel('var(im(E_loc))')
+    plt.title('Var in imag part of E_loc')
+    plt.grid(True)
+    #plt.legend(handles=[p1,p2])
 
     plt.show()
 
-
-test_fullStateSpace_and_MC_as_sample_plot()
+#test_fullStateSpace_and_MC_as_sample_run()
+test_fullStateSpace_and_MC_as_sample_plot('test_data1',plotLog=True)

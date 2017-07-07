@@ -135,3 +135,8 @@ def tf_tanh_complex128(x):
     num = tf.add(tf_to_complex128(1,0),tf.exp(tf.multiply(to_complex128(2,0),x)));
     den = tf.subtract(to_complex128(1,0),tf.exp(tf.negative(tf.multiply(tf_to_complex128(2,0),x))));
     return tf.divide(num,den);
+
+class Bunch(dict):
+    def __init__(self, *args, **kwds):
+        super(Bunch, self).__init__(*args, **kwds)
+        self.__dict__ = self

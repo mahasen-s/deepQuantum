@@ -646,22 +646,13 @@ def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
     plt.title('Distance from perfect overlap of NN and Exact wf')
     plt.grid(True)
 
- #   p1, = plt.semilogy(data.mcs_list,np.abs(data.H_list_full-data.E_0),marker='o',label='Full space')
- #   p2, = plt.semilogy(data.mcs_list,np.abs(data.H_list_samp-data.E_0),marker='o',label='Sample')
- #   plt.xlabel('Step')
- #   plt.ylabel('abs(H_avg-E_0)')
- #   plt.grid(True)
-    #plt.legend(handles=[p1,p2])
-
     # Plot mean of real part of local energies at each step
     plt.subplot(232)
-  #  p1, = plt.plot(data.mcs_list,np.mean(np.real(data.E_vals_list_full),axis=1),marker='o',label='Full space')
     p2, = plotFun(data.mcs_list,np.mean(np.real(data.E_vals_list_samp),axis=1),'Sample')
     plt.xlabel('Step')
     plt.ylabel('mean(re(E_loc))')
     plt.title('Mean of real part of E_loc')
     plt.grid(True)
-    #plt.legend(handles=[p1,p2])
 
     # Plot mean of imag part of local energies at each step
     plt.subplot(233)
@@ -671,27 +662,22 @@ def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
     plt.ylabel('mean(im(E_loc))')
     plt.title('Mean of imag part of E_loc')
     plt.grid(True)
-    #plt.legend(handles=[p1,p2])
 
     # Plot unbiased var of real part of local energies at each step
     plt.subplot(235)
     p1, = plotFun(data.mcs_list,np.var(np.real(data.E_vals_list_full),axis=1,ddof=1),'Full space')
-    #p2, = plt.plot(data.mcs_list,np.var(np.real(data.E_vals_list_samp),axis=1,ddof=1),marker='o',label='Sample')
     plt.xlabel('Step')
     plt.ylabel('var(re(E_loc))')
     plt.title('Var in real part of E_loc')
     plt.grid(True)
-    #plt.legend(handles=[p1,p2])
 
     # Plot unbiased var of imag part of local energies at each step
     plt.subplot(236)
     p1, = plotFun(data.mcs_list,np.var(np.imag(data.E_vals_list_full),axis=1,ddof=1),'Full space')
-    #p2, = plt.plot(data.mcs_list,np.var(np.imag(data.E_vals_list_samp),axis=1,ddof=1),marker='o',label='Sample')
     plt.xlabel('Epoch')
     plt.ylabel('var(im(E_loc))')
     plt.title('Var in imag part of E_loc')
     plt.grid(True)
-    #plt.legend(handles=[p1,p2])
 
     plt.show()
 

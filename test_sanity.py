@@ -447,6 +447,18 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
     # Calculate variational energy using the full set of states and compare with a MC sample
     from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
     from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
+    def reduce_var(x, axis=None, keepdims=False):
+        """Variance of a tensor, alongside the specified axis
+        # Arguments
+        x: A tensor or variable.
+        axis: An integer, the axis to compute the variance.
+        keepdims: A boolean, whether to keep the dimensions or not.
+        If `keepdims` is `False`, the rank of the tensor is reduced
+        by 1. If `keepdims` is `True`, the reduced dimension is retained with length 1.
+        # Returns a tensor with the variance of elements of `x`."""
+        m = tf.reduce_mean(x, axis=axis, keep_dims=True)
+        devs_squared = tf.square(x - m)
+        return tf.reduce_mean(devs_squared, axis=axis, keep_dims=keepdims)
 
     # EXACT VARS
     exactFile   = "/exact/results/exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
@@ -496,6 +508,7 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
         trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(H_avg_full);
     elif optim == 'adam':
         trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg_full);
+        #trainStep2  = tf.train.AdamOptimizer(learn_rate).minimize(H_samp.E_locs_mean_re);
 
     # SAMPLE SPACE
     H_list_samp = np.zeros(mcs,dtype=np.float)
@@ -536,8 +549,9 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
     startTime   = timer()
 
     for i in range(mcs):
-        print("\nEpoch %d" % i)
+        print("\nStep %d" % i)
         psi_vals    = feed(H_full,trainStep,states)
+        #psi_vals    = feed(H_samp,trainStep2,sample)
 
         # Get new sample
         sample = mcg1.getSample_MH(M_samp,useFinal=mcg_useFinal)
@@ -601,14 +615,15 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
 def test_fullStateSpace_and_MC_as_sample_run():
     N           = 4
     alpha       = 4
-    mcs         = 200
+    mcs         = 100
     learn_rate  = 0.05
     h_drive     = 1
     h_inter     = 0.5
     h_detune    = 0
     fileOut     = 'test_data1'
+    M           = 20
 
-    test_fullStateSpace_and_MC_as_sample(   N=N,alpha=alpha,mcs=mcs,learn_rate=learn_rate,\
+    test_fullStateSpace_and_MC_as_sample(   N=N,alpha=alpha,mcs=mcs,learn_rate=learn_rate,M_samp=M,\
                                             optim='adam',\
                                             h_drive=h_drive,h_inter=h_inter,h_detune=h_detune,\
                                             mcg_useFinal=True, \
@@ -681,5 +696,5 @@ def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
 
     plt.show()
 
-#test_fullStateSpace_and_MC_as_sample_run()
+test_fullStateSpace_and_MC_as_sample_run()
 test_fullStateSpace_and_MC_as_sample_plot('test_data1',plotLog=True)

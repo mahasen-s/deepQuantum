@@ -2,7 +2,7 @@ function exact_TFI_wrapper
 hDetunes= [0,0];
 hInters = [0.5,1];
 hDrives = [1,0.5];
-NMax    = 15;
+NMax    = 2024*2600;
 method  = 'sa';
 
 for i=1:numel(hDetunes)

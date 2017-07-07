@@ -615,13 +615,13 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
 def test_fullStateSpace_and_MC_as_sample_run():
     N           = 4
     alpha       = 4
-    mcs         = 100
+    mcs         = 70
     learn_rate  = 0.05
     h_drive     = 1
     h_inter     = 0.5
     h_detune    = 0
     fileOut     = 'test_data1'
-    M           = 20
+    M           = 128
 
     test_fullStateSpace_and_MC_as_sample(   N=N,alpha=alpha,mcs=mcs,learn_rate=learn_rate,M_samp=M,\
                                             optim='adam',\
@@ -697,4 +697,4 @@ def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
     plt.show()
 
 test_fullStateSpace_and_MC_as_sample_run()
-test_fullStateSpace_and_MC_as_sample_plot('test_data1',plotLog=True)
+test_fullStateSpace_and_MC_as_sample_plot('test_data1',plotLog=False)

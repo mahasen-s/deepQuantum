@@ -32,7 +32,12 @@ Finds groundstate solutions for arbitrary spin Hamiltonians.
   * Repeat for some number of steps (until the state is statistically uncorrelated with the last step) **Done**
   * Accept new state as new member of Metropolis sample **Done**
 
-* Rewrite tensorflow implementation
+* Rewrite as RNN in tensorflow
+  * Rewrite tests for RNN Metropolis
+
+## Diagnostics
+* Set up `tensorBoard`
+* Write wrappers for `timeline`
 
 ## Exact solver
 * Generalise to solve (simple) arbitrary spin Hamiltonians

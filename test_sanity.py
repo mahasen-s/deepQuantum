@@ -509,8 +509,8 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
     wf_full = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
 
     # construct Hamiltonian
-    H_full       = hamiltonian(wf_full,M=M_full,h_drive=1,h_inter=0.5,h_detune=0)
-    H_samp       = hamiltonian(wf_full,M=M_samp,h_drive=1,h_inter=0.5,h_detune=0)
+    H_full       = hamiltonian(wf_full,M=M_full,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
+    H_full       = hamiltonian(wf_full,M=M_samp,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
 
     # IO vars
     H_list_full = np.zeros(mcs,dtype=np.float)
@@ -694,8 +694,8 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
     wf_full = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
 
     # construct Hamiltonian
-    H_full       = hamiltonian(wf_full,M=M_full,h_drive=1,h_inter=0.5,h_detune=0)
-    H_samp       = hamiltonian(wf_full,M=M_samp,h_drive=1,h_inter=0.5,h_detune=0)
+    H_full       = hamiltonian(wf_full,M=M_full,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
+    H_full       = hamiltonian(wf_full,M=M_samp,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
 
     # IO vars
     H_list_full = np.zeros(mcs,dtype=np.float)

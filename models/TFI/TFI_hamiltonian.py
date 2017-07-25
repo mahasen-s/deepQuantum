@@ -41,6 +41,8 @@ class hamiltonian_tfi():
         self.E_proj_unnorm  = tf.add(E_sig_z,E_sig_x)
         self.E_locs         = tf.divide(self.E_proj_unnorm,self.psi)
         self.E_locs_mean_re = tf.reduce_mean(tf.real(self.E_locs))
+        self.E_locs_var_re = tf.reduce_mean(tf.square(tf.real(self.E_locs) - tf.reduce_mean(tf.real(self.E_locs), keep_dims=True)))
+        self.E_locs_std_re = tf.sqrt(self.E_locs_var_re)
 
 
     def getAuxVars(self,S):

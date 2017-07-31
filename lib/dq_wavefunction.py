@@ -19,8 +19,10 @@ class wavefunction():
         sess (tensorflow session): The session to run all tf commands through.
 
     Keyword:
-        nn_type (String): The learner type. 'shallow' single layer net. 'deep' deep nerual net. Default: 'deep'.
+        nn_type (String): The learner type. 'mf_single' single layer net. 'mf_deep' deep nerual net. Default: 'deep'.
         input_num (int): The number of inputs for the net. Default 1.
+    
+    
         hidden_num (int): The number of hidden units. If none set to input_num. Default None.
         layers_num (int): The number of layer in the deep neural net. Not used for shallow.
         activation_function (string): The activation function used for wavefunction. Not used for shallow
@@ -55,7 +57,7 @@ class wavefunction():
         self.weights = []
         self.biases = []
 
-        if nn_type == 'shallow':
+        if nn_type == 'mf':
             self.biases.append( tf_bias_gen([self.hidden_num,1]) )
             self.weights.append( tf_weight_gen([self.output_num, self.input_num]) )
             self.weights.append( tf_weight_gen([self.hidden_num, self.input_num]) )

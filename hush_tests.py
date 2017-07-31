@@ -36,13 +36,13 @@ import sys
 
 def gen_data(fileOut='pickledData'):
     
-    N = 6
-    P = 16
+    N = 8
+    P = 32
     L = 2
-    M = 4
+    M = 16
     
-    full_steps = 500
-    mc_steps = 0
+    full_steps = 0
+    mc_steps = 1000
     
     burnIn = 16
     thinning = 4
@@ -86,6 +86,11 @@ def gen_data(fileOut='pickledData'):
     # IO vars
     H_list = []
     O_list = []
+    H_m_r_list = []
+    H_s_r_list = []
+    H_m_i_list = []
+    H_s_i_list = []
+    
 
     # Get aux vars
     [sigx_full,sigz_full] = H_full.getAuxVars(states)
@@ -97,11 +102,15 @@ def gen_data(fileOut='pickledData'):
     
     fullTrainStep   = tf.train.AdamOptimizer(learn_rate_full).minimize(H_avg_full);
     
-    H_avg_mc = H_samp.E_locs_mean_re 
-    #H_avg_mc = H_samp.E_locs_var_re
-    #H_avg_mc = H_samp.E_locs_mean_re + 3*H_samp.E_locs_std_re
+    H_mean_re_mc = H_samp.E_locs_mean_re 
+    H_mean_im_mc = H_samp.E_locs_mean_im 
+    H_std_re_mc = H_samp.E_locs_std_re 
+    H_std_im_mc = H_samp.E_locs_std_im
     
-    mcTrainStep = tf.train.AdamOptimizer(learn_rate_mc).minimize(H_avg_mc)
+    #H_cost_mc = H_samp.E_locs_mean_re
+    H_cost_mc = H_samp.E_locs_var_re + H_samp.E_locs_var_im
+        
+    mcTrainStep = tf.train.AdamOptimizer(learn_rate_mc).minimize(H_cost_mc)
     
     # Initialise vars
     sess.run(tf.global_variables_initializer())
@@ -121,11 +130,24 @@ def gen_data(fileOut='pickledData'):
 
     startTime   = timer()
     print("Start full")
-    for i in range(full_steps):
+    for i in range(full_steps + mc_steps):
         
         print("\nStep %d" % i)
-        feed(H_full,fullTrainStep,states)
-
+        sample = mcg1.getSample_MH(M,useFinal=mcg_useFinal)
+        if i < full_steps:
+            feed(H_full,fullTrainStep,states)
+        else:
+            feed(H_samp,mcTrainStep,sample)
+        
+        H_m_r_now   = feed(H_samp,H_mean_re_mc,sample)
+        H_m_r_list.append(H_m_r_now)
+        H_s_r_now   = feed(H_samp,H_std_re_mc,sample)
+        H_s_r_list.append(H_s_r_now)
+        H_m_i_now   = feed(H_samp,H_mean_im_mc,sample)
+        H_m_i_list.append(H_m_i_now)
+        H_s_i_now   = feed(H_samp,H_std_im_mc,sample)
+        H_s_i_list.append(H_s_i_now)
+        
         H_avg_now   = feed(H_full,H_avg_full,states)
         H_list.append(H_avg_now)
         print('H_avg_full err\t=%4.3e' % (H_avg_now-E_0))
@@ -133,35 +155,20 @@ def gen_data(fileOut='pickledData'):
         overlap     = computeOverlap(wf_full,wf_exact)
         O_list.append(overlap)
         print('Overlap\t=%4.3e' % overlap)
-    
-    print("Start mc")
-    for j in range(mc_steps):
-        
-        print("\nStep %d" % j)
-        sample = mcg1.getSample_MH(M,useFinal=mcg_useFinal)
-        feed(H_samp,mcTrainStep,sample)
-        
-        H_mc_now   = feed(H_samp,H_avg_mc,sample)
-        H_list.append(H_mc_now)
-        print('H_avg_full err\t=%4.3e' % (H_mc_now-E_0))
-        
-        overlap     = computeOverlap(wf_full,wf_exact)
-        O_list.append(overlap)
-        print('Overlap\t=%4.3e' % overlap)
-
+      
     endTime     = timer()
     print('Time elapsed\t=%d seconds\n' % (endTime-startTime))
-
-    
-    H_array = np.array(H_list)
-    O_array = np.array(O_list)
     
     # Save data
     data    = Bunch()
-    data.H_array    = H_array
-    data.O_array    = O_array
+    data.H_array = np.real(np.array(H_list))
+    data.O_array = np.real(np.array(O_list))
+    data.H_m_r_array = np.real(np.array(H_m_r_list))
+    data.H_s_r_array  = np.real(np.array(H_s_r_list))
+    data.H_m_i_array  = np.real(np.array(H_m_i_list))
+    data.H_s_i_array = np.real(np.array(H_s_i_list))
     data.E_0 = E_0
-
+    
     fileObj     = open(fileOut,'wb')
     pickle.dump(data,fileObj)
     fileObj.close()
@@ -180,6 +187,22 @@ def make_plots(fileOut,plotLog=False):
     plt.figure(2)
     plt.plot(np.real(data.O_array))
     plt.title('Overlap')
+    
+    plt.figure(3)
+    plt.plot(np.real(data.H_m_r_array))
+    plt.title('MC H real mean')
+    
+    plt.figure(4)
+    plt.plot(np.real(data.H_s_r_array))
+    plt.title('MC H real std')
+    
+    plt.figure(5)
+    plt.plot(np.real(data.H_m_i_array))
+    plt.title('MC H imag mean')
+    
+    plt.figure(6)
+    plt.plot(np.real(data.H_s_i_array))
+    plt.title('MC H imag std')
     
     plt.show()
 

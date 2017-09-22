@@ -60,6 +60,9 @@ class wavefunction():
     def buildOp(self,input_states):
         # generate einsum string
         input_dims  = len(input_states.get_shape());
+        if input_dims>24:
+            raise ValueError('Number of dimensions of input_states too large (>24)')
+
         alphabet    = 'abcdefghklmnopqrstuvwxyz';
         einsum_string   = 'ij,%sj->%si' %(alphabet[0:input_dims-1],alphabet[0:input_dims-1])
 

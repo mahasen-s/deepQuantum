@@ -38,7 +38,7 @@ class hamiltonian_tfi():
         sigx            = tf.einsum(einsum_string,input_states,flip_mat)
 
         # Get energy from sigz, sigx
-        E_sigz          = tf.scalar_mul(self.h_inter,tf.multiply(self.psi,self.sigz))
+        E_sigz          = tf.scalar_mul(self.h_inter,tf.multiply(self.psi,self.sigz)) # will fail because dimensions of psi, sigz are wrong
         E_sigx          = tf.scalar_mul(self.h_drive,tf.reduce_sum(wavefunction.build_wf(sigx),axis=-1))
 
 

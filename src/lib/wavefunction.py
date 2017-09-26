@@ -57,7 +57,7 @@ class wavefunction():
                     self.biases.append(tf_bias_gen(str_biases,self.num_hidden))
                     self.weights.append(tf_weight_gen(str_weights,[self.num_hidden,self.num_hidden]))
 
-    def buildOp(self,input_states):
+    def build_wf(self,input_states):
         # generate einsum string
         input_dims  = len(input_states.get_shape());
         if input_dims>24:
@@ -104,9 +104,9 @@ def test_wavefunction():
     input_2D    = tf.constant(np.ones([4,5]))
     input_3D    = tf.constant(np.ones([3,4,5]))
 
-    op_1D       = wf.buildOp(input_1D)
-    op_2D       = wf.buildOp(input_2D)
-    op_3D       = wf.buildOp(input_3D)
+    op_1D       = wf.build_wf(input_1D)
+    op_2D       = wf.build_wf(input_2D)
+    op_3D       = wf.build_wf(input_3D)
 
     assert sess.run(op_1D).shape==(2,)
     assert sess.run(op_2D).shape==(4,2)

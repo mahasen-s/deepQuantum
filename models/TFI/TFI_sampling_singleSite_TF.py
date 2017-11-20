@@ -26,7 +26,7 @@ class markovChainGenerator():
     #   propDist(A,B)       : evaluates the conditional proposal distribution p(A|B) i.e. probability of proposing A given B
     # sampler needs to have the following methods
     #   initGen()           : generates a candidate initial state
-    # 	propGen(S) 			: generates a candidate state based on a given state S
+    #   propGen(S)          : generates a candidate state based on a given state S
 
     # DESIGN ELEMENTS
     # Need to be able to start the chain from an element with non-zero probability
@@ -49,7 +49,6 @@ class markovChainGenerator():
 
         # Create a variable to hold the final state of the previous chain
         self.finalState = None
-        self.finalStateExists = False
 
     def get_initState(self):
         # generates a random initial state. Initial state will be accepted if it has non-zero probability
@@ -79,7 +78,7 @@ class markovChainGenerator():
             raise ValueError('probNew is not finite, everything is broken')
 
         # Accept/Reject step
-        #prAccept 		= min(1,(probNew/self.probOld)*(self.sampler.propFun(S,Snew)/self.sampler.propFun(Snew,S)))
+        #prAccept       = min(1,(probNew/self.probOld)*(self.sampler.propFun(S,Snew)/self.sampler.propFun(Snew,S)))
         prAccept        = min(1,(probNew/self.probOld))
         if np.random.rand() < prAccept:
             # step is successful
@@ -93,10 +92,9 @@ class markovChainGenerator():
         # generates a Markov Chain of length M using Metropolis-Hastings
 
         # Get initial state
-        if useFinal == True and self.finalStateExists == True:
+        if useFinal == True and self.finalState != None:
             # Use end of previous chain
             self.initState = self.finalState
-            self.finalStateExists = True
         else:
             # Was an initial state supplied?
             if initState is None:
@@ -164,7 +162,7 @@ class sampler_TFI:
 
     def propGen(self,S):
         # Generates candidate state given previous state S
-        Snew	= np.array(S)
+        Snew    = np.array(S)
 
         # Flip a random site
         Snew[np.random.randint(self.N)] *= -1

@@ -9,16 +9,15 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from timeit import default_timer as timer
 
-import lib.config as conf
+import lib.config_real as conf
 
 from lib.dq_sampling import metropolisSample
-from lib.dq_wavefunction import wavefunction
-from lib.dq_computeOverlap import computeOverlap
+from lib.dq_wavefunction_real import wavefunction
+from lib.dq_computeOverlap_real import computeOverlap
 
-from lib.dq_utils import genAllStates
+from lib.dq_utils_real import genAllStates
 
-from models.TFI.TFI_sampling import sampling_tfi as sampling_fun
-from models.TFI.TFI_hamiltonian import hamiltonian_tfi as hamiltonian
+from models.TFI.TFI_hamiltonian_real import hamiltonian_tfi as hamiltonian
 
 from exact.pythonLoadHDF5 import loadMatlabHDF5 as pyMatLoad
 
@@ -30,7 +29,7 @@ import pickle
 tf.logging.set_verbosity(tf.logging.ERROR)
 
 class wf_test():
-    def __init__(self,sess,wf_fun,input_num=2,output_num=1,nStates=1):
+    def __init__(self,sess,wf_fun,input_num=2,output_num=2,nStates=1):
         self.sess = sess
         self.input_num = input_num
         self.output_num = output_num
@@ -48,7 +47,7 @@ class wf_test():
             input_states = tf.expand_dims(input_states,0)
         elif len(input_states.get_shape()) != 3:
             print('Incompatible dimensions of '+repr(input_states)+' for wavefunction')
-            raise ValueError
+            raise ValueErrorz
 
         psi     = self.wf_fun(self,input_states)
         return psi
@@ -60,17 +59,35 @@ class wf_test():
 def wf_GHZ_fun(caller,input_states):
     N   = tf.constant(caller.input_num,dtype=conf.DTYPE)
     div = tf.constant(1/np.sqrt(2),dtype=conf.DTYPE)
-    psi = tf.cast(tf.equal(tf.abs(tf.einsum('ijk->ik',input_states)),tf.abs(N)),conf.DTYPE)
+    psi = tf.cast(tf.equal(tf.abs(tf.einsum('ijk->ik',input_states)),N),conf.DTYPE)
+
+    # For real output
+    psi_real        = tf.expand_dims(psi,-1)
+    psi_imag        = tf.zeros_like(psi_real)
+    psi             = tf.concat([psi_real,psi_imag],-1)
+
     return psi
 
 def wf_W_fun(caller,input_states):
     N   = tf.constant(-caller.input_num+2,dtype=conf.DTYPE)
     div = tf.constant(1/np.sqrt(caller.input_num),dtype=conf.DTYPE)
     psi = tf.cast(tf.equal(tf.einsum('ijk->ik',input_states),N),conf.DTYPE)
+
+
+    # For real output
+    psi_real        = tf.expand_dims(psi,-1)
+    psi_imag        = tf.zeros_like(psi_real)
+    psi             = tf.concat([psi_real,psi_imag],-1)
     return psi
 
 def wf_absSum_fun(caller,input_states):
     psi = tf.cast(tf.abs(tf.einsum('ijk->ik',input_states)),conf.DTYPE)
+
+    # For real output
+    psi_real        = tf.expand_dims(psi,-1)
+    psi_imag        = tf.zeros_like(psi_real)
+    psi             = tf.concat([psi_real,psi_imag],-1)
+
     return psi
 
 def wf_rand_fun_maker(N):
@@ -104,6 +121,7 @@ def test_wf():
     # Define input states
     test    = np.array([[1,1,1],[-1,-1,-1],[1,-1,-1],[-1,1,-1],[-1,-1,1]])
     test    = np.transpose(test)
+    print(test.shape)
 
     M       = test.shape[1];
 
@@ -129,6 +147,7 @@ def test_wf():
     # Print
     print(E_GHZ)
     print(E_W)
+    print(E_GHZ.shape)
 
     print("Sigz")
     print(sigz)
@@ -139,31 +158,10 @@ def test_wf():
     print(sess.run(H_GHZ.input_states, feed_dict={H_GHZ.input_states:test}))
 
     print("Test multiply")
-    print(sess.run(tf.multiply(wf_GHZ.buildOp(H_GHZ.input_states),sigz), feed_dict={H_GHZ.input_states:test}))
-    print(sess.run(tf.multiply(wf_W.buildOp(H_W.input_states),sigz), feed_dict={H_W.input_states:test}))
+    print(repr(sigz))
+    print(sess.run(tf.multiply(wf_GHZ.buildOp(H_GHZ.input_states),tf.expand_dims(sigz,-1)), feed_dict={H_GHZ.input_states:test}))
+    print(sess.run(tf.multiply(wf_W.buildOp(H_W.input_states),tf.expand_dims(sigz,-1)), feed_dict={H_W.input_states:test}))
 
-def test_mcg():
-    N = 5
-    sess = tf.Session()
-
-    # Create states
-    wf_W    = wf_test(sess,wf_W_fun,input_num=N)
-
-    # initialise variables
-    sess.run(tf.global_variables_initializer())
-
-    # Import 
-    from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
-    from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
-
-    M = 20;
-    samp    = sampler(N=N,probFun=wf_W.eval)
-    mcg1    = mcg(samp,burnIn=10,thinning=1)
-
-    # Get sample, unseeded
-    S       = mcg1.getSample_MH(M)
-    print('\nMarkov chain')
-    print(repr(np.transpose(S)))
 
 def test_mcg_nonUniformDist():
     # Produce random distribution, then use mcg to produce sample which has the same statistics
@@ -232,8 +230,10 @@ def test_mcg_nonUniformDist_Plot():
     print(mean_analytic)
     print(std_analytic)
 
-    Ml = np.linspace(1000,10000,10)
-    M = np.repeat(Ml,10)
+    Ml = np.linspace(100,1000,3)
+    nRpts= 2
+    M = np.repeat(Ml,nRpts)
+
     means   = np.zeros([len(M),N])
     stds    = np.zeros([len(M),N])
 
@@ -263,8 +263,8 @@ def test_mcg_nonUniformDist_Plot():
     np.savez('plotNonUniDist',means=means,stds=stds,probs=probs,mean_analytic=mean_analytic,std_analytic=std_analytic,d_mean=d_mean,d_mean_avg=d_mean_avg,d_norms=d_norms,d_norms_avg=d_norms_avg)
 
     f, axarr = plt.subplots(2, sharex=True)
-    d_mean_avg_plot = np.divide(np.sum(np.reshape(d_mean_avg,[len(Ml),10]),axis=1),10)
-    d_norms_avg_plot = np.divide(np.sum(np.reshape(d_norms_avg,[len(Ml),10]),axis=1),10)
+    d_mean_avg_plot = np.divide(np.sum(np.reshape(d_mean_avg,[len(Ml),nRpts]),axis=1),nRpts)
+    d_norms_avg_plot = np.divide(np.sum(np.reshape(d_norms_avg,[len(Ml),nRpts]),axis=1),nRpts)
     axarr[0].plot(Ml,d_mean_avg_plot,marker='o')
     axarr[0].set_ylabel('Abs. Avg. Dist.')
     axarr[0].grid(True)
@@ -274,7 +274,7 @@ def test_mcg_nonUniformDist_Plot():
     axarr[1].grid(True)
     plt.show()
 
-def test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0):
+def test_fullStateSpace_as_sample(N=4,alpha=3,mcs=250,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0):
     # Calculate variational energy using the full set of states
 
     states,_= genAllStates(N)
@@ -286,7 +286,7 @@ def test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gra
     # construct wavefunction
     P       = alpha*N
     sess    = tf.Session()
-    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
+    wf      = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=3)
 
     # construct Hamiltonian
     H       = hamiltonian(wf,M=M,h_drive=h_drive,h_inter=h_inter,h_detune=h_detune)
@@ -311,11 +311,21 @@ def test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gra
 
     # Build quantity to minimise
     #H_avg       = tf.divide(tf.reduce_sum(tf.multiply(H.psi,H.E_vals)), tf.multiply(tf.conj(H.psi),H.psi))
-    denom       = tf.reduce_sum(tf.pow(tf.abs(H.psi),2.0))
-    num         = tf.einsum('ij,ij->',H.psi,H.E_locs)
-    H_avg       = tf.divide(num,tf.complex(denom,np.float64(0.0)))
-
-    H_avg       = tf.real(H_avg)
+    #denom       = tf.reduce_sum(tf.pow(tf.abs(H.psi),2.0))
+    denom       = tf.reduce_sum(tf.pow(tf.norm(H.psi,axis=-1,keep_dims=True),2.0))
+    #num         = tf.einsum('ij,ij->',H.psi,H.E_vals)
+    num_real = tf.reduce_sum(tf.reduce_sum(tf.multiply(H.psi,H.E_locs),axis=-1),axis=-1)
+    num_imag = tf.reduce_sum(tf.reduce_sum(tf.multiply(H.psi,tf.reverse(H.E_locs,axis=[-1])),axis=-1),axis=-1)
+    
+    #H_avg       = tf.divide(num,tf.complex(denom,np.float64(0.0)))
+    #H_avg       = tf.real(H_avg)
+    H_avg   = tf.divide(num_real,denom)
+    print('H_avg shap[e: %s' % repr(H_avg.shape))
+    print(denom.shape)
+    print(num_real.shape)
+    print(num_imag.shape)
+    print(H_avg.shape)
+    
 
     if optim == 'gradient_descent':
         trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg);
@@ -350,6 +360,7 @@ def test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gra
 
         # Compute H_avg
         H_avg_now   = feed(H_avg)
+        print(H_avg_now.shape)
         print('H_avg\t=%4.3e' % H_avg_now)
         H_avg_list[i]   = H_avg_now
 
@@ -378,7 +389,7 @@ def test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='gra
 def test_fullStateSpace_as_sample_plot():
     # Plot H_avg as function of epoch
 
-    mcs_list, H_avg_list, OverlapList,_ = test_fullStateSpace_as_sample(N=4,alpha=4,mcs=250,learn_rate=0.05,optim='adam',h_drive=1,h_inter=0.5,h_detune=0)
+    mcs_list, H_avg_list, OverlapList,_ = test_fullStateSpace_as_sample(N=4,alpha=3,mcs=1000,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0.5,h_detune=0)
     plt.figure(1)
     plt.subplot(211)
     plt.plot(mcs_list,H_avg_list,marker='o')
@@ -395,53 +406,23 @@ def test_fullStateSpace_as_sample_plot():
 
     plt.show()
 
-def test_fullStateSpace_as_sample_plot_multi():
-    # Plot absolute difference between deepQuantum and analytic
-    mcs     = 4000;
-    optim = 'adam'
-    lrate=0.0025
-    mcs_list, H1, _, E1 = test_fullStateSpace_as_sample(N=6,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=1,h_inter=0.5,h_detune=0)
-    mcs_list2, H2, _ , E2 = test_fullStateSpace_as_sample(N=8,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=1,h_inter=0.5,h_detune=0)
-    _, H3, _ , E3 = test_fullStateSpace_as_sample(N=6,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=0.5,h_inter=1,h_detune=0)
-    _, H4, _ , E4= test_fullStateSpace_as_sample(N=8,alpha=6,mcs=mcs,learn_rate=lrate,optim=optim,h_drive=0.5,h_inter=1,h_detune=0)
+def wf_rand_fun_maker(N):
+    probs   = nr.rand(2**N).reshape([2**N,1])
+    states,_= genAllStates(N)
+    states  = np.transpose(states)
 
-    np.savez('data_FSS_as_sample_multi',mcs_list=mcs_list,mcs_list2=mcs_list2,H1=H1,H2=H2,H3=H3,H4=H4,E1=E1,E2=E2,E3=E3,E4=E4)
-    def wrapFun(x):
-        return np.abs(x)
+    def wf_rand_fun(state):
+        S = state.reshape(1,N)
 
-    def plotFun(*args,**kwargs):
-        return plt.semilogy(*args,**kwargs)
+        for i in range(2**N):
+            if (states[i,:]==S).all()==True:
+                # match
+                break
 
-    plt.figure(1)
-    plt.subplot(221)
-    plotFun(mcs_list,wrapFun(H1-E1),marker='o')
-    plt.xlabel('Epoch')
-    plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=6, hDrive=1, hInter=0.5, learn_rate=0.0025')
-    plt.grid(True)
+        return probs[i]
 
-    plt.subplot(222)
-    plotFun(mcs_list,wrapFun(H3-E3),marker='o')
-    plt.xlabel('Epoch')
-    plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=6, hDrive=0.5, hInter=1, learn_rate=0.0025')
-    plt.grid(True)
+    return probs, states, wf_rand_fun
 
-    plt.subplot(223)
-    plotFun(mcs_list2,wrapFun(H2-E2),marker='o')
-    plt.xlabel('Epoch')
-    plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=8, hDrive=1, hInter=0.5, learn_rate=0.0025')
-    plt.grid(True)
-
-    plt.subplot(224)
-    plotFun(mcs_list2,wrapFun(H4-E4),marker='o')
-    plt.xlabel('Epoch')
-    plt.ylabel('Abs(H_avg-E_0)')
-    plt.title('N=8, hDrive=0.5, hInter=1, learn_rate=0.0025')
-    plt.grid(True)
-
-    plt.show()
 
 def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0,mcg_useFinal=False,fileOut='pickledData',gpuCount=0,probFunDebug=False):
     # Calculate variational energy using the full set of states and compare with a MC sample
@@ -483,6 +464,12 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
         devs_squared = tf.square(x - m)
         return tf.reduce_mean(devs_squared, axis=axis, keep_dims=keepdims)
 
+    def tfRev(x):
+        return tf.reverse(x,axis=[-1])
+
+    def tfConj(x):
+        return tf.multiply(tf.constant([1,-1],dtype=x.dtype),x)
+
     # Instantiate session
     config = tf.ConfigProto(
         device_count = {'GPU': gpuCount}
@@ -509,7 +496,7 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
 
     # construct wavefunction
     P       = alpha*N
-    wf_full = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
+    wf_full = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=4)
 
     # construct Hamiltonian
     H_full       = hamiltonian(wf_full,M=M_full,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
@@ -519,19 +506,27 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
     H_list_full = np.zeros(mcs,dtype=np.float)
     OL_list_full= np.zeros(mcs,dtype=np.float)
     var_list_full=np.zeros(mcs,dtype=np.float)
-    E_vals_list_full    = np.zeros([mcs,M_full],dtype=complex)
+    E_vals_list_full    = np.zeros([mcs,M_full,2],dtype=complex)
 
     # Get aux vars
     [sigx_full,sigz_full] = H_full.getAuxVars(states)
 
     # Build quantity to minimise
-    denom_full  = tf.reduce_sum(tf.pow(tf.abs(H_full.psi),2.0))
-    num_full    = tf.einsum('ij,ij->',tf.conj(H_full.psi),H_full.E_proj_unnorm)
-    H_avg_full  = tf.real(tf.divide(num_full,tf.complex(denom_full,np.float64(0.0))))
+    # denom_full  = tf.reduce_sum(tf.pow(tf.abs(H_full.psi),2.0))
+    # num_full    = tf.einsum('ij,ij->',tf.conj(H_full.psi),H_full.E_proj_unnorm)
+    # H_avg_full  = tf.real(tf.divide(num_full,tf.complex(denom_full,np.float64(0.0))))
+    denom_full   = tf.reduce_sum(tf.pow(tf.norm(H_full.psi,axis=-1,keep_dims=True),2.0))
+    num_real_full = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_full.psi),H_full.E_proj_unnorm),axis=-1),axis=-1)
+    num_imag_full = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_full.psi),tfRev(H_full.E_proj_unnorm)),axis=-1),axis=-1)
+    H_avg_full  = tf.divide(num_real_full,denom_full)
 
-    denom_samp  = tf.reduce_sum(tf.pow(tf.abs(H_samp.psi),2.0))
-    num_samp    = tf.einsum('ij,ij->',tf.conj(H_samp.psi),H_samp.E_proj_unnorm)
-    H_avg_samp  = tf.real(tf.divide(num_samp,tf.complex(denom_samp,np.float64(0.0))))
+    # denom_samp  = tf.reduce_sum(tf.pow(tf.abs(H_samp.psi),2.0))
+    # num_samp    = tf.einsum('ij,ij->',tf.conj(H_samp.psi),H_samp.E_proj_unnorm)
+    # H_avg_samp  = tf.real(tf.divide(num_samp,tf.complex(denom_samp,np.float64(0.0))))
+    denom_samp   = tf.reduce_sum(tf.pow(tf.norm(H_samp.psi,axis=-1,keep_dims=True),2.0))
+    num_real_samp = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_samp.psi),H_samp.E_proj_unnorm),axis=-1),axis=-1)
+    num_imag_samp = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_samp.psi),tfRev(H_samp.E_proj_unnorm)),axis=-1),axis=-1)
+    H_avg_samp  = tf.divide(num_real_samp,denom_samp)
 
     if optim == 'gradient_descent':
         trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg_full);
@@ -545,7 +540,7 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
     H_list_samp = np.zeros(mcs,dtype=np.float)
     OL_list_samp= np.zeros(mcs,dtype=np.float)
     var_list_samp= np.zeros(mcs,dtype=np.float)
-    E_vals_list_samp    = np.zeros([mcs,M_samp],dtype=complex)
+    E_vals_list_samp    = np.zeros([mcs,M_samp,2],dtype=complex)
 
     # Initialise vars
     sess.run(tf.global_variables_initializer())
@@ -613,8 +608,8 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
         OL_list_full[i]  = overlap
 
         # Compute local energies and store
-        E_vals_list_full[i:i+1,:]   = feed(H_full,H_full.E_locs,states)
-        E_vals_list_samp[i:i+1,:]   = feed(H_samp,H_samp.E_locs,sample)
+        E_vals_list_full[i:i+1,:,:]   = feed(H_full,H_full.E_locs,states)
+        E_vals_list_samp[i:i+1,:,:]   = feed(H_samp,H_samp.E_locs,sample)
 
         fetched_timeline= timeline.Timeline(run_metadata.step_stats)
         chrome_trace    = fetched_timeline.generate_chrome_trace_format()
@@ -661,179 +656,11 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
     sess.close()
 
 
-def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0,mcg_useFinal=False,fileOut='pickledData'):
-    # Calculate variational energy using the full set of states and compare with a MC sample
-    from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
-    from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
-    def reduce_var(x, axis=None, keepdims=False):
-        """Variance of a tensor, alongside the specified axis
-        # Arguments
-        x: A tensor or variable.
-        axis: An integer, the axis to compute the variance.
-        keepdims: A boolean, whether to keep the dimensions or not.
-        If `keepdims` is `False`, the rank of the tensor is reduced
-        by 1. If `keepdims` is `True`, the reduced dimension is retained with length 1.
-        # Returns a tensor with the variance of elements of `x`."""
-        m = tf.reduce_mean(x, axis=axis, keep_dims=True)
-        devs_squared = tf.square(x - m)
-        return tf.reduce_mean(devs_squared, axis=axis, keep_dims=keepdims)
-
-    # EXACT VARS
-    exactFile   = "/exact/results/exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
-    exactFile   = '.' + exactFile.replace('.','p') + '.mat'
-    try:
-        exactVals   = pyMatLoad(exactFile,'data')
-    except:
-        raise ValueError('File not found: %s' % exactFile)
-    wf_exact    = exactVals[N-2]
-
-    # FULL STATE SPACE
-    states,_= genAllStates(N)
-    print("States:")
-    print(states)
-    M_full  = states.shape[1]
-
-    # construct wavefunction
-    P       = alpha*N
-    sess    = tf.Session()
-    wf_full = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=2)
-
-    # construct Hamiltonian
-    H_full       = hamiltonian(wf_full,M=M_full,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
-    H_full       = hamiltonian(wf_full,M=M_samp,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
-
-    # IO vars
-    H_list_full = np.zeros(mcs,dtype=np.float)
-    OL_list_full= np.zeros(mcs,dtype=np.float)
-    var_list_full=np.zeros(mcs,dtype=np.float)
-    E_vals_list_full    = np.zeros([mcs,M_full],dtype=complex)
-
-    # Get aux vars
-    [sigx_full,sigz_full] = H_full.getAuxVars(states)
-
-    # Build quantity to minimise
-    denom_full  = tf.reduce_sum(tf.pow(tf.abs(H_full.psi),2.0))
-    num_full    = tf.einsum('ij,ij->',tf.conj(H_full.psi),H_full.E_proj_unnorm)
-    H_avg_full  = tf.real(tf.divide(num_full,tf.complex(denom_full,np.float64(0.0))))
-
-    denom_samp  = tf.reduce_sum(tf.pow(tf.abs(H_samp.psi),2.0))
-    num_samp    = tf.einsum('ij,ij->',tf.conj(H_samp.psi),H_samp.E_proj_unnorm)
-    H_avg_samp  = tf.real(tf.divide(num_samp,tf.complex(denom_samp,np.float64(0.0))))
-
-    if optim == 'gradient_descent':
-        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg_full);
-    elif optim == 'adagrad':
-        trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(H_avg_full);
-    elif optim == 'adam':
-        trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg_full);
-        #trainStep2  = tf.train.AdamOptimizer(learn_rate).minimize(H_samp.E_locs_mean_re);
-
-    # SAMPLE SPACE
-    H_list_samp = np.zeros(mcs,dtype=np.float)
-    OL_list_samp= np.zeros(mcs,dtype=np.float)
-    var_list_samp= np.zeros(mcs,dtype=np.float)
-    E_vals_list_samp    = np.zeros([mcs,M_samp],dtype=complex)
-
-    # Initialise vars
-    sess.run(tf.global_variables_initializer())
-
-    # Create sampler
-    def probFun(x):
-        return np.power(np.abs(np.squeeze(wf_full.eval(x))),2.0)
-    samp    = sampler(N=N,probFun=probFun)
-    mcg1    = mcg(samp,burnIn=5*N,thinning=2*N)
-    sample  = mcg1.getSample_MH(M_samp)
-
-    # Feeding wrappers
-    def feed(H,f,S):
-        [sigx_t,sigz_t] = H.getAuxVars(S)
-        return sess.run(f, feed_dict={H.input_states: S, H.sigx: sigx_t, H.sigz: sigz_t})
-
-    # Print values
-    print("\n<state|Psi> for each state in space")
-    psi_vals    = feed(H_full,H_full.psi,states)
-    print(psi_vals)
-
-    print("\nLocal energy for each state in space")
-    local_Evals = feed(H_full,H_full.E_locs,states)
-    print(local_Evals)
-
-    print('\nInitial H_avg over all states')
-    print(feed(H_full,H_avg_full,states))
-
-    print('\nInitial H_avg over all sample')
-    print(feed(H_samp,H_avg_samp,sample))
-
-    startTime   = timer()
-
-    for i in range(mcs):
-        print("\nStep %d" % i)
-        psi_vals    = feed(H_full,trainStep,states)
-        #psi_vals    = feed(H_samp,trainStep2,sample)
-
-        # Get new sample
-        sample = mcg1.getSample_MH(M_samp,useFinal=mcg_useFinal)
-
-        # Compute H_avg
-        H_avg_now   = feed(H_full,H_avg_full,states)
-        print('H_avg_full err\t=%4.3e' % (H_avg_now-wf_exact[2]))
-        H_list_full[i]   = H_avg_now
-
-        H_avg_now   = feed(H_samp,H_avg_samp,sample)
-        print('H_avg_samp err\t=%4.3e' % (H_avg_now-wf_exact[2]))
-        H_list_samp[i]   = H_avg_now
-
-        # Compute overlap
-        overlap     = computeOverlap(wf_full,wf_exact)
-        print('Overlap\t=%4.3e' % overlap)
-        OL_list_full[i]  = overlap
-
-        # Compute local energies and store
-        E_vals_list_full[i:i+1,:]   = feed(H_full,H_full.E_locs,states)
-        E_vals_list_samp[i:i+1,:]   = feed(H_samp,H_samp.E_locs,sample)
-
-    endTime     = timer()
-    print('Time elapsed\t=%d seconds\n' % (endTime-startTime))
-
-
-    # Save data
-    data    = Bunch()
-    data.H_list_full    = H_list_full
-    data.H_list_samp    = H_list_samp
-    data.OL_list_full   = OL_list_full
-    data.E_vals_list_full   = E_vals_list_full
-    data.E_vals_list_samp   = E_vals_list_samp
-    data.N              = N
-    data.alpha          = alpha
-    data.mcs            = mcs
-    data.h_drive        = h_drive
-    data.h_inter        = h_inter
-    data.h_detune       = h_detune
-    data.M              = M_samp
-    data.mcs_list       = np.arange(mcs)
-    data.E_0            = wf_exact[2]
-    data.learn_rate     = learn_rate
-
-    fileObj     = open(fileOut,'wb')
-    pickle.dump(data,fileObj)
-    fileObj.close()
-
-    print("<state|Psi> for each state in space, end of sim")
-    psi_vals    = feed(H_full,H_full.psi,states)
-    print(psi_vals)
-
-    print("Local energy for each state in space, end of sim")
-    local_Evals = feed(H_full,H_full.E_locs,states)
-    print(local_Evals)
-
-    print("Full Error \t= %4.3e\n" % (feed(H_full,H_avg_full,states)-wf_exact[2]))
-    print("Samp Error \t= %4.3e\n" % (feed(H_samp,H_avg_samp,sample)-wf_exact[2]))
-    sess.close()
-
+#test_wf()
 def test_fullStateSpace_and_MC_as_sample_run(**kwargs):
     N           = 4
     alpha       = 4
-    mcs         = 70
+    mcs         = 100
     learn_rate  = 0.05
     h_drive     = 1
     h_inter     = 0.5
@@ -849,88 +676,4 @@ def test_fullStateSpace_and_MC_as_sample_run(**kwargs):
                                                  **kwargs)
 
 
-def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
-    fileObj     = open(fileOut,'rb')
-    data        = pickle.load(fileObj)
-    fileObj.close()
-
-    def plotFun(x,y,label):
-        if plotLog == False:
-            handle  = plt.plot(x,y,marker='o',label=label)
-        else:
-            handle  = plt.semilogy(x,np.abs(y),marker='o',label=label)
-        return handle
-
-    plt.figure(1)
-    # Plot <H>_var-E_0
-    plt.subplot(231)
-    p1,  = plotFun(data.mcs_list,data.H_list_samp-data.E_0,'Sample')
-    p2,  = plotFun(data.mcs_list,data.H_list_full-data.E_0,'Full space')
-    plt.xlabel('Step')
-    plt.ylabel('H_avg-E_0')
-    plt.title('N=%d, hDrive=%2.1f, hInter=%2.1f, learn_rate=%2.2e' % (data.N,data.h_drive,data.h_inter,data.learn_rate))
-    plt.grid(True)
-    plt.legend(handles=[p1,p2])
-
-    # Plot distance from exact
-    plt.subplot(234)
-    plotFun(data.mcs_list,data.OL_list_full-1,'Overlap')
-    plt.xlabel('Step')
-    plt.ylabel('Overlap-1')
-    plt.title('Distance from perfect overlap of NN and Exact wf')
-    plt.grid(True)
-
-    # Plot mean of real part of local energies at each step
-    plt.subplot(232)
-    p2, = plotFun(data.mcs_list,np.mean(np.real(data.E_vals_list_samp),axis=1),'Sample')
-    plt.xlabel('Step')
-    plt.ylabel('mean(re(E_loc))')
-    plt.title('Mean of real part of E_loc')
-    plt.grid(True)
-
-    # Plot mean of imag part of local energies at each step
-    plt.subplot(233)
-    p1, = plotFun(data.mcs_list,np.mean(np.imag(data.E_vals_list_samp),axis=1),'Sample')
-    p2, = plotFun(data.mcs_list,np.mean(np.imag(data.E_vals_list_full),axis=1),'Full space')
-    plt.xlabel('Step')
-    plt.ylabel('mean(im(E_loc))')
-    plt.title('Mean of imag part of E_loc')
-    plt.grid(True)
-
-    # Plot unbiased var of real part of local energies at each step
-    plt.subplot(235)
-    p1, = plotFun(data.mcs_list,np.var(np.real(data.E_vals_list_full),axis=1,ddof=1),'Full space')
-    plt.xlabel('Step')
-    plt.ylabel('var(re(E_loc))')
-    plt.title('Var in real part of E_loc')
-    plt.grid(True)
-
-    # Plot unbiased var of imag part of local energies at each step
-    plt.subplot(236)
-    p1, = plotFun(data.mcs_list,np.var(np.imag(data.E_vals_list_full),axis=1,ddof=1),'Full space')
-    plt.xlabel('Epoch')
-    plt.ylabel('var(im(E_loc))')
-    plt.title('Var in imag part of E_loc')
-    plt.grid(True)
-
-    plt.show()
-
-# import time
-# start   = time.time()
-# test_fullStateSpace_and_MC_as_sample_run(gpuCount=1)
-# t1      = time.time()
-# test_fullStateSpace_and_MC_as_sample_run(gpuCount=1,probFunDebug=True)
-# t2      = time.time()
-test_fullStateSpace_and_MC_as_sample_run(gpuCount=0)
-# t3      = time.time()
-# test_fullStateSpace_and_MC_as_sample_run(gpuCount=0,probFunDebug=True)
-# t4      = time.time()
-
-# # Print time taken
-# print('Time gpuCount=1, probFunDebug=False \t=%4.3f' % (t1-start))
-# print('Time gpuCount=1, probFunDebug=True \t=%4.3f' % (t2-t1))
-# print('Time gpuCount=0, probFunDebug=False \t=%4.3f' % (t3-t2))
-# print('Time gpuCount=0, probFunDebug=True \t=%4.3f' % (t4-t3))
-#
-#test_wf()
-#test_fullStateSpace_as_sample_plot()
+test_fullStateSpace_and_MC_as_sample_run(gpuCount=0,probFunDebug=True)

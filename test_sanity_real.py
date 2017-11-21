@@ -316,7 +316,7 @@ def test_fullStateSpace_as_sample(N=4,alpha=3,mcs=250,learn_rate=0.05,optim='gra
     #num         = tf.einsum('ij,ij->',H.psi,H.E_vals)
     num_real = tf.reduce_sum(tf.reduce_sum(tf.multiply(H.psi,H.E_locs),axis=-1),axis=-1)
     num_imag = tf.reduce_sum(tf.reduce_sum(tf.multiply(H.psi,tf.reverse(H.E_locs,axis=[-1])),axis=-1),axis=-1)
-    
+
     #H_avg       = tf.divide(num,tf.complex(denom,np.float64(0.0)))
     #H_avg       = tf.real(H_avg)
     H_avg   = tf.divide(num_real,denom)
@@ -325,7 +325,7 @@ def test_fullStateSpace_as_sample(N=4,alpha=3,mcs=250,learn_rate=0.05,optim='gra
     print(num_real.shape)
     print(num_imag.shape)
     print(H_avg.shape)
-    
+
 
     if optim == 'gradient_descent':
         trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg);
@@ -481,7 +481,7 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
     exactFile   = '.' + exactFile.replace('.','p') + '.mat'
     #exactFile   = "exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
     #exactFile   = exactFile.replace('.','p') + '.mat'
-    
+
     try:
         exactVals   = pyMatLoad(exactFile,'data')
     except:
@@ -535,6 +535,259 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
     elif optim == 'adam':
         trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg_full);
         #trainStep2  = tf.train.AdamOptimizer(learn_rate).minimize(H_samp.E_locs_mean_re);
+
+    # SAMPLE SPACE
+    H_list_samp = np.zeros(mcs,dtype=np.float)
+    OL_list_samp= np.zeros(mcs,dtype=np.float)
+    var_list_samp= np.zeros(mcs,dtype=np.float)
+    E_vals_list_samp    = np.zeros([mcs,M_samp,2],dtype=complex)
+
+    # Initialise vars
+    sess.run(tf.global_variables_initializer())
+
+    # Set trace level
+    options     = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+    run_metadata = tf.RunMetadata()
+    many_runs_timeline = TimeLiner()
+
+    # Create sampler
+    def probFun(x):
+        return np.power(np.abs(np.squeeze(wf_full.eval(x))),2.0)
+
+    # Use a dummy 'wavefunction' if requested
+    if probFunDebug==True:
+        _, _, wf_rand_fun = wf_rand_fun_maker(N)
+        probFun     = wf_rand_fun
+
+    samp    = sampler(N=N,probFun=probFun)
+    mcg1    = mcg(samp,burnIn=5*N,thinning=2*N)
+    sample  = mcg1.getSample_MH(M_samp)
+
+    # Feeding wrappers
+    def feed(H,f,S):
+        [sigx_t,sigz_t] = H.getAuxVars(S)
+        return sess.run(f, feed_dict={H.input_states: S, H.sigx: sigx_t, H.sigz: sigz_t},options=options,run_metadata=run_metadata)
+
+    # Print values
+    print("\n<state|Psi> for each state in space")
+    psi_vals    = feed(H_full,H_full.psi,states)
+    print(psi_vals)
+
+    print("\nLocal energy for each state in space")
+    local_Evals = feed(H_full,H_full.E_locs,states)
+    print(local_Evals)
+
+    print('\nInitial H_avg over all states')
+    print(feed(H_full,H_avg_full,states))
+
+    print('\nInitial H_avg over all sample')
+    print(feed(H_samp,H_avg_samp,sample))
+
+    startTime   = timer()
+
+    for i in range(mcs):
+        print("\nStep %d" % i)
+        psi_vals    = feed(H_full,trainStep,states)
+        #psi_vals    = feed(H_samp,trainStep2,sample)
+
+        # Get new sample
+        sample = mcg1.getSample_MH(M_samp,useFinal=mcg_useFinal)
+
+        # Compute H_avg
+        H_avg_now   = feed(H_full,H_avg_full,states)
+        print('H_avg_full err\t=%4.3e' % (H_avg_now-wf_exact[2]))
+        H_list_full[i]   = H_avg_now
+
+        H_avg_now   = feed(H_samp,H_avg_samp,sample)
+        print('H_avg_samp err\t=%4.3e' % (H_avg_now-wf_exact[2]))
+        H_list_samp[i]   = H_avg_now
+
+        # Compute overlap
+        overlap     = computeOverlap(wf_full,wf_exact)
+        print('Overlap\t=%4.3e' % overlap)
+        OL_list_full[i]  = overlap
+
+        # Compute local energies and store
+        E_vals_list_full[i:i+1,:,:]   = feed(H_full,H_full.E_locs,states)
+        E_vals_list_samp[i:i+1,:,:]   = feed(H_samp,H_samp.E_locs,sample)
+
+        fetched_timeline= timeline.Timeline(run_metadata.step_stats)
+        chrome_trace    = fetched_timeline.generate_chrome_trace_format()
+        many_runs_timeline.update_timeline(chrome_trace)
+
+    many_runs_timeline.save('dq_timelinejson_multi.json')
+
+    endTime     = timer()
+    print('Time elapsed\t=%d seconds\n' % (endTime-startTime))
+
+
+    # Save data
+    data    = Bunch()
+    data.H_list_full    = H_list_full
+    data.H_list_samp    = H_list_samp
+    data.OL_list_full   = OL_list_full
+    data.E_vals_list_full   = E_vals_list_full
+    data.E_vals_list_samp   = E_vals_list_samp
+    data.N              = N
+    data.alpha          = alpha
+    data.mcs            = mcs
+    data.h_drive        = h_drive
+    data.h_inter        = h_inter
+    data.h_detune       = h_detune
+    data.M              = M_samp
+    data.mcs_list       = np.arange(mcs)
+    data.E_0            = wf_exact[2]
+    data.learn_rate     = learn_rate
+
+    fileObj     = open(fileOut,'wb')
+    pickle.dump(data,fileObj)
+    fileObj.close()
+
+    print("<state|Psi> for each state in space, end of sim")
+    psi_vals    = feed(H_full,H_full.psi,states)
+    print(psi_vals)
+
+    print("Local energy for each state in space, end of sim")
+    local_Evals = feed(H_full,H_full.E_locs,states)
+    print(local_Evals)
+
+    print("Full Error \t= %4.3e\n" % (feed(H_full,H_avg_full,states)-wf_exact[2]))
+    print("Samp Error \t= %4.3e\n" % (feed(H_samp,H_avg_samp,sample)-wf_exact[2]))
+    sess.close()
+
+
+#test_wf()
+def test_fullStateSpace_and_MC_as_sample_run(**kwargs):
+    N           = 4
+    alpha       = 4
+    mcs         = 100
+    learn_rate  = 0.05
+    h_drive     = 1
+    h_inter     = 0.5
+    h_detune    = 0
+    fileOut     = 'test_data1'
+    M           = 16
+
+    test_fullStateSpace_and_MC_as_sample_timeline(   N=N,alpha=alpha,mcs=mcs,learn_rate=learn_rate,M_samp=M,\
+                                            optim='adam',\
+                                            h_drive=h_drive,h_inter=h_inter,h_detune=h_detune,\
+                                            mcg_useFinal=True, \
+                                            fileOut     = fileOut, \
+                                                 **kwargs)
+
+def test_fullStateSpace_and_MC_as_sample_timeline_saito(N=4,alpha=4,mcs=250,M_samp=10,learn_rate=0.05,optim='gradient_descent',h_drive=1,h_inter=0,h_detune=0,mcg_useFinal=False,fileOut='pickledData',gpuCount=0,probFunDebug=False):
+    # Calculate variational energy using the full set of states and compare with a MC sample
+    from models.TFI.TFI_sampling_singleSite import markovChainGenerator as mcg
+    from models.TFI.TFI_sampling_singleSite import sampler_TFI as sampler
+    from tensorflow.python.client import timeline
+    import json
+
+    class TimeLiner:
+        _timeline_dict = None
+
+        def update_timeline(self, chrome_trace):
+            # convert crome trace to python dict
+            chrome_trace_dict = json.loads(chrome_trace)
+            # for first run store full trace
+            if self._timeline_dict is None:
+                self._timeline_dict = chrome_trace_dict
+            # for other - update only time consumption, not definitions
+            else:
+                for event in chrome_trace_dict['traceEvents']:
+                    # events time consumption started with 'ts' prefix
+                    if 'ts' in event:
+                        self._timeline_dict['traceEvents'].append(event)
+
+        def save(self, f_name):
+            with open(f_name, 'w') as f:
+                json.dump(self._timeline_dict, f)
+
+    def reduce_var(x, axis=None, keepdims=False):
+        """Variance of a tensor, alongside the specified axis
+        # Arguments
+        x: A tensor or variable.
+        axis: An integer, the axis to compute the variance.
+        keepdims: A boolean, whether to keep the dimensions or not.
+        If `keepdims` is `False`, the rank of the tensor is reduced
+        by 1. If `keepdims` is `True`, the reduced dimension is retained with length 1.
+        # Returns a tensor with the variance of elements of `x`."""
+        m = tf.reduce_mean(x, axis=axis, keep_dims=True)
+        devs_squared = tf.square(x - m)
+        return tf.reduce_mean(devs_squared, axis=axis, keep_dims=keepdims)
+
+    def tfRev(x):
+        return tf.reverse(x,axis=[-1])
+
+    def tfConj(x):
+        return tf.multiply(tf.constant([1,-1],dtype=x.dtype),x)
+
+    # Instantiate session
+    config = tf.ConfigProto(
+        device_count = {'GPU': gpuCount}
+    )
+    sess    = tf.Session(config=config)
+
+    # EXACT VARS ## FIX
+    exactFile   = "/exact/results/exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
+    exactFile   = '.' + exactFile.replace('.','p') + '.mat'
+    #exactFile   = "exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
+    #exactFile   = exactFile.replace('.','p') + '.mat'
+
+    try:
+        exactVals   = pyMatLoad(exactFile,'data')
+    except:
+        raise ValueError('File not found: %s' % exactFile)
+    wf_exact    = exactVals[N-2]
+
+    # FULL STATE SPACE
+    states,_= genAllStates(N)
+    print("States:")
+    print(states)
+    M_full  = states.shape[1]
+
+    # construct wavefunction
+    P       = alpha*N
+    wf_full = wavefunction(sess,input_num=N,hidden_num=P,nn_type='deep',layers_num=4)
+
+    # construct Hamiltonian
+    H_full       = hamiltonian(wf_full,M=M_full,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
+    H_samp       = hamiltonian(wf_full,M=M_samp,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
+
+    # IO vars
+    H_list_full = np.zeros(mcs,dtype=np.float)
+    OL_list_full= np.zeros(mcs,dtype=np.float)
+    var_list_full=np.zeros(mcs,dtype=np.float)
+    E_vals_list_full    = np.zeros([mcs,M_full,2],dtype=complex)
+
+    # Get aux vars
+    [sigx_full,sigz_full] = H_full.getAuxVars(states)
+
+    # Build quantity to minimise
+    # denom_full  = tf.reduce_sum(tf.pow(tf.abs(H_full.psi),2.0))
+    # num_full    = tf.einsum('ij,ij->',tf.conj(H_full.psi),H_full.E_proj_unnorm)
+    # H_avg_full  = tf.real(tf.divide(num_full,tf.complex(denom_full,np.float64(0.0))))
+    denom_full   = tf.reduce_sum(tf.pow(tf.norm(H_full.psi,axis=-1,keep_dims=True),2.0))
+    num_real_full = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_full.psi),H_full.E_proj_unnorm),axis=-1),axis=-1)
+    num_imag_full = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_full.psi),tfRev(H_full.E_proj_unnorm)),axis=-1),axis=-1)
+    H_avg_full  = tf.divide(num_real_full,denom_full)
+
+    # denom_samp  = tf.reduce_sum(tf.pow(tf.abs(H_samp.psi),2.0))
+    # num_samp    = tf.einsum('ij,ij->',tf.conj(H_samp.psi),H_samp.E_proj_unnorm)
+    # H_avg_samp  = tf.real(tf.divide(num_samp,tf.complex(denom_samp,np.float64(0.0))))
+    denom_samp   = tf.reduce_sum(tf.pow(tf.norm(H_samp.psi,axis=-1,keep_dims=True),2.0))
+    num_real_samp = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_samp.psi),H_samp.E_proj_unnorm),axis=-1),axis=-1)
+    num_imag_samp = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_samp.psi),tfRev(H_samp.E_proj_unnorm)),axis=-1),axis=-1)
+    H_avg_samp  = tf.divide(num_real_samp,denom_samp)
+
+    # Choose optimizer
+    if optim == 'gradient_descent':
+        optimizer   = tf.train.GradientDescentOptimizer(learn_rate)
+    elif optim == 'adagrad':
+        optimizer   = tf.train.AdagradOptimizer(learn_rate)
+    elif optim == 'adam':
+        optimizer   = tf.train.AdamOptimizer(learn_rate)
+
+    # 
 
     # SAMPLE SPACE
     H_list_samp = np.zeros(mcs,dtype=np.float)

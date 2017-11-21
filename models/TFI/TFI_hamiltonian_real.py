@@ -9,7 +9,7 @@ import numpy.linalg as nl
 import tensorflow as tf
 
 from lib import config_real as conf
-from lib import dq_utils as utils
+from lib import dq_utils_real as utils
 
 class hamiltonian_tfi():
     def __init__(self,wf,M=1,h_drive=1,h_inter=1,h_detune=0):
@@ -43,18 +43,12 @@ class hamiltonian_tfi():
 
 
         # Constructing local energies
+        self.E_locs = utils.tf_tuple_div(self.E_proj_unnorm,self.psi)
+        E_locs_real = utils.tuple_real(self.E_locs)
+        E_locs_imag = utils.tuple_imag(self.E_locs)
         # self.E_locs         = tf.divide(self.E_proj_unnorm,self.psi)
-        denom = tf.reduce_sum(tf.square(self.psi),axis=-1,keep_dims=True)
-        conj_mask = tf.constant([1,-1],dtype=conf.DTYPE)
-        psi_conj = tf.multiply(self.psi,conj_mask)
-
-        # real, imag part of numerator of self.E_locs before multiplying by E_proj_unnorm
-        num_real = tf.reduce_sum(tf.multiply(self.E_proj_unnorm[:,:,:1],psi_conj),axis=-1,keep_dims=True)
-        num_imag = tf.reduce_sum(tf.multiply(self.E_proj_unnorm[:,:,1:2],tf.reverse(psi_conj,axis=[-1])),axis=-1,keep_dims=True)
 
         # construct E_locs
-        E_locs_real = tf.divide(num_real,denom)
-        E_locs_imag = tf.divide(num_imag,denom)
         self.E_locs = tf.concat([E_locs_real,E_locs_imag],axis=-1)
 
         print(self.E_proj_unnorm.shape)

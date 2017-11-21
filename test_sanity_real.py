@@ -535,27 +535,11 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
         global_step = None
 
     if optim == 'gradient_descent':
-        optimizer   = tf.train.GradientDescentOptimizer(learn_rate)
+        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg)
     elif optim == 'adagrad':
-        optimizertrainStep   = tf.train.AdagradOptimizer(learn_rate)
+        trainStep  = tf.train.AdagradOptimizer(learn_rate).minimize(H_avg)
     elif optim == 'adam':
-        optimizer   = tf.train.AdamOptimizer(learn_rate)
-
-    # Calculate gradients
-    def trainStep_builder(wf,loss):
-        # collect variables
-        variables = wf.biases+wf.weights
-
-        # compute gradients
-        gradients = optimizer.compute_gradients(loss,variables)
-
-        # apply gradients
-        trainOp = optimizer.apply_gradients(gradients,global_step=global_step)
-
-        return trainOp
-
-    # Define trainOp
-    trainStep = trainStep_builder(H_full,H_avg_full)
+        trainStep  = tf.train.AdamOptimizer(learn_rate).minimize(H_avg)
 
     # SAMPLE SPACE
     H_list_samp = np.zeros(mcs,dtype=np.float)
@@ -808,7 +792,24 @@ def test_fullStateSpace_and_MC_as_sample_timeline_saito(N=4,alpha=4,mcs=250,M_sa
     elif optim == 'adam':
         optimizer   = tf.train.AdamOptimizer(learn_rate)
 
-    # 
+    # Calculate gradients
+    def trainStep_builder(wf,H):
+        # collect variables
+        variables = wf.biases+wf.weights
+
+        # compute gradients
+        # gradients = optimizer.compute_gradients(loss,variables)
+        O_w = utils.tf_tuple_div(tf.gradient(H.psi,variables),H.psi)
+        
+
+        # apply gradients
+        trainOp = optimizer.apply_gradients(gradients,global_step=global_step)
+
+        return trainOp
+
+    # Define trainOp
+    trainStep = trainStep_builder(H_full,H_avg_full)
+
 
     # SAMPLE SPACE
     H_list_samp = np.zeros(mcs,dtype=np.float)

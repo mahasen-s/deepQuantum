@@ -146,8 +146,28 @@ def tf_tuple_rev(x):
     return tf.reverse(x,axis=[-1])
 
 def tf_tuple_conj(x):
-    return tf.multiply(tf.constant([-1,1],dtype=x.dtype),x)
+    return tf.multiply(tf.constant([1,-1],dtype=x.dtype),x)
 
-def tf_tuple_complex_divide(a,b):
-    ad
+def tf_tuple_real(x):
+    shape = x.shape.as_list();
+    new_shape = shape[0:-1]+[1]
+    return tf.slice(x,np.zeros_like(shape),new_shape)
+
+def tf_tuple_imag(x):
+    shape = x.shape.as_list();
+    new_shape = shape[0:-1]+[1]
+    start = np.zeros_like(shape)
+    start[-1] = 1
+    return tf.slice(x,start,new_shape)
+
+def tf_tuple_mul(a,b):
+    real_part = tf.reduce_sum(tf.multiply(a,tf_tuple_conj(b)),axis=-1,keep_dims=True)
+    imag_part = tf.reduce_sum(tf.multiply(a,tf_tuple_rev(b)),axis=-1,keep_dims=True)
+    return tf.concat(real_part,imag_part,axis=-1)
+
+def f_tuple_div(a,b):
+    # returns a/b, where a and b have innermost dim of size 2 representing a complex array
+    denom = tf.reduce_sum(tf.square(b),axis=-1,keep_dims=True)
+    num = tf_tuple_mul(a,tf_tuple_conj(b))
+    return tf.divide(num,denom)
 

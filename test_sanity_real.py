@@ -528,13 +528,34 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
     num_imag_samp = tf.reduce_sum(tf.reduce_sum(tf.multiply(tfConj(H_samp.psi),tfRev(H_samp.E_proj_unnorm)),axis=-1),axis=-1)
     H_avg_samp  = tf.divide(num_real_samp,denom_samp)
 
+    # Choose optimizer
+    if learning_decay == True:
+        global_step = tf.Variable(0,trainable=False)
+    else:
+        global_step = None
+
     if optim == 'gradient_descent':
-        trainStep   = tf.train.GradientDescentOptimizer(learn_rate).minimize(H_avg_full);
+        optimizer   = tf.train.GradientDescentOptimizer(learn_rate)
     elif optim == 'adagrad':
-        trainStep   = tf.train.AdagradOptimizer(learn_rate).minimize(H_avg_full);
+        optimizertrainStep   = tf.train.AdagradOptimizer(learn_rate)
     elif optim == 'adam':
-        trainStep   = tf.train.AdamOptimizer(learn_rate).minimize(H_avg_full);
-        #trainStep2  = tf.train.AdamOptimizer(learn_rate).minimize(H_samp.E_locs_mean_re);
+        optimizer   = tf.train.AdamOptimizer(learn_rate)
+
+    # Calculate gradients
+    def trainStep_builder(wf,loss):
+        # collect variables
+        variables = wf.biases+wf.weights
+
+        # compute gradients
+        gradients = optimizer.compute_gradients(loss,variables)
+
+        # apply gradients
+        trainOp = optimizer.apply_gradients(gradients,global_step=global_step)
+
+        return trainOp
+
+    # Define trainOp
+    trainStep = trainStep_builder(H_full,H_avg_full)
 
     # SAMPLE SPACE
     H_list_samp = np.zeros(mcs,dtype=np.float)

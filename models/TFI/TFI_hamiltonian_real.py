@@ -45,7 +45,7 @@ class hamiltonian_tfi():
         # Constructing local energies
         # self.E_locs         = tf.divide(self.E_proj_unnorm,self.psi)
         denom = tf.reduce_sum(tf.square(self.psi),axis=-1,keep_dims=True)
-        conj_mask = tf.constant([1,-1],dtype=conf.DTYPE) 
+        conj_mask = tf.constant([1,-1],dtype=conf.DTYPE)
         psi_conj = tf.multiply(self.psi,conj_mask)
 
         # real, imag part of numerator of self.E_locs before multiplying by E_proj_unnorm

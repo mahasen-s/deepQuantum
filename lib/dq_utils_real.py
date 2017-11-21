@@ -140,3 +140,14 @@ class Bunch(dict):
     def __init__(self, *args, **kwds):
         super(Bunch, self).__init__(*args, **kwds)
         self.__dict__ = self
+
+# Stuff for size-2 output
+def tf_tuple_rev(x):
+    return tf.reverse(x,axis=[-1])
+
+def tf_tuple_conj(x):
+    return tf.multiply(tf.constant([-1,1],dtype=x.dtype),x)
+
+def tf_tuple_complex_divide(a,b):
+    ad
+

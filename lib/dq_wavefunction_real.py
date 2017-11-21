@@ -141,7 +141,6 @@ class wavefunction():
                     # print(self.weights[ind].shape)
                     # print(curr_net.shape)
 
-            
             # print('\nInd = End')
             # print(self.biases[-1].shape)
             # print(self.weights[-1].shape)

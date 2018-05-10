@@ -31,6 +31,7 @@ Finds groundstate solutions for arbitrary spin Hamiltonians.
   * Flip one spin site randomly, decide whether to accept **Done**
   * Repeat for some number of steps (until the state is statistically uncorrelated with the last step) **Done**
   * Accept new state as new member of Metropolis sample **Done**
+  * Rewritten as pure TensorFlow
 
 * Rewrite as RNN in tensorflow
   * Rewrite tests for RNN Metropolis

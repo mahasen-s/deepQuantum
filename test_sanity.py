@@ -510,7 +510,7 @@ def test_fullStateSpace_and_MC_as_sample_timeline(N=4,alpha=4,mcs=250,M_samp=10,
 
     # construct Hamiltonian
     H_full       = hamiltonian(wf_full,M=M_full,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
-    H_full       = hamiltonian(wf_full,M=M_samp,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
+    H_samp       = hamiltonian(wf_full,M=M_samp,h_drive=h_drive,h_inter=h_inter,h_detune=h_inter)
 
     # IO vars
     H_list_full = np.zeros(mcs,dtype=np.float)
@@ -674,8 +674,8 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
         return tf.reduce_mean(devs_squared, axis=axis, keep_dims=keepdims)
 
     # EXACT VARS
-    exactFile   = "/exact/results/exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
-    exactFile   = '.' + exactFile.replace('.','p') + '.mat'
+    exactFile   = "exact/results/exact_TFI_hDrive=%2.1f_hInter=%2.1f_hDetune=%2.1f" % (h_drive,h_inter,h_detune)
+    exactFile   = exactFile.replace('.','p') + '.mat'
     try:
         exactVals   = pyMatLoad(exactFile,'data')
     except:
@@ -826,10 +826,10 @@ def test_fullStateSpace_and_MC_as_sample(N=4,alpha=4,mcs=250,M_samp=10,learn_rat
     sess.close()
 
 def test_fullStateSpace_and_MC_as_sample_run(**kwargs):
-    N           = 4
-    alpha       = 4
-    mcs         = 70
-    learn_rate  = 0.05
+    N           = 5
+    alpha       = 5
+    mcs         = 200
+    learn_rate  = 0.01
     h_drive     = 1
     h_inter     = 0.5
     h_detune    = 0
@@ -844,7 +844,7 @@ def test_fullStateSpace_and_MC_as_sample_run(**kwargs):
                                                  **kwargs)
 
 
-def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
+def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=True):
     fileObj     = open(fileOut,'rb')
     data        = pickle.load(fileObj)
     fileObj.close()
@@ -910,20 +910,23 @@ def test_fullStateSpace_and_MC_as_sample_plot(fileOut,plotLog=False):
 
     plt.show()
 
-import time
-start   = time.time()
-test_fullStateSpace_and_MC_as_sample_run(gpuCount=1)
-t1      = time.time()
-test_fullStateSpace_and_MC_as_sample_run(gpuCount=1,probFunDebug=True)
-t2      = time.time()
-test_fullStateSpace_and_MC_as_sample_run(gpuCount=0)
-t3      = time.time()
-test_fullStateSpace_and_MC_as_sample_run(gpuCount=0,probFunDebug=True)
-t4      = time.time()
+#import time
+#start   = time.time()
+#test_fullStateSpace_and_MC_as_sample_run(gpuCount=1)
+#t1      = time.time()
+#test_fullStateSpace_and_MC_as_sample_run(gpuCount=1,probFunDebug=True)
+#t2      = time.time()
+#test_fullStateSpace_and_MC_as_sample_run(gpuCount=0)
+#t3      = time.time()
+#test_fullStateSpace_and_MC_as_sample_run(gpuCount=0,probFunDebug=True)
+#t4      = time.time()
 
 # Print time taken
-print('Time gpuCount=1, probFunDebug=False \t=%4.3f' % (t1-start))
-print('Time gpuCount=1, probFunDebug=True \t=%4.3f' % (t2-t1))
-print('Time gpuCount=0, probFunDebug=False \t=%4.3f' % (t3-t2))
-print('Time gpuCount=0, probFunDebug=True \t=%4.3f' % (t4-t3))
+#print('Time gpuCount=1, probFunDebug=False \t=%4.3f' % (t1-start))
+#print('Time gpuCount=1, probFunDebug=True \t=%4.3f' % (t2-t1))
+#print('Time gpuCount=0, probFunDebug=False \t=%4.3f' % (t3-t2))
+#print('Time gpuCount=0, probFunDebug=True \t=%4.3f' % (t4-t3))
 #test_fullStateSpace_and_MC_as_sample_plot('test_data1',plotLog=False)
+
+test_fullStateSpace_and_MC_as_sample_run()
+test_fullStateSpace_and_MC_as_sample_plot('test_data1',plotLog=True)

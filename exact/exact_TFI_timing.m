@@ -1,6 +1,6 @@
 function exact_TFI_timing
 hList   = 0.0;%:0.25:2.0;
-NMax    = 15;
+NMax    = 20;
 method  = 'sa';
 
 for i=1:numel(hList)

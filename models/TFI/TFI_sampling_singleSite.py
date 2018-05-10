@@ -92,7 +92,7 @@ class markovChainGenerator():
         # generates a Markov Chain of length M using Metropolis-Hastings
 
         # Get initial state
-        if useFinal == True and self.finalState != None:
+        if useFinal == True and self.finalState is not None:
             # Use end of previous chain
             self.initState = self.finalState
         else:
